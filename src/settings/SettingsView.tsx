@@ -887,19 +887,30 @@ function DevPanel() {
         </div>
         <div className="flex items-center gap-2">
           <Label className="font-normal">modifier</Label>
-          <select
-            value={modifier}
-            onChange={(e) => setModifier(Number(e.target.value))}
-            className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+          <Select
+            value={String(modifier)}
+            onValueChange={(value) => setModifier(Number(value))}
           >
-            {["LCTRL", "LSHIFT", "LALT", "LGUI", "RCTRL", "RSHIFT", "RALT", "RGUI"].map(
-              (name, bit) => (
-                <option value={bit} key={name}>
+            <SelectTrigger className="w-28">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {[
+                "LCTRL",
+                "LSHIFT",
+                "LALT",
+                "LGUI",
+                "RCTRL",
+                "RSHIFT",
+                "RALT",
+                "RGUI",
+              ].map((name, bit) => (
+                <SelectItem value={String(bit)} key={name}>
                   {name}
-                </option>
-              ),
-            )}
-          </select>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button
             size="sm"
             variant="outline"
@@ -947,21 +958,23 @@ export function SettingsView() {
   const active = profiles.find((p) => p.name === activeName) ?? null;
 
   return (
-    <main className="mx-auto max-w-3xl space-y-4 p-6">
-      <h1 className="text-xl font-semibold">kb-hud settings</h1>
-      <ProfilesSection profiles={profiles} activeName={activeName} reload={reload} />
-      <AppearanceSection appearance={appearance} update={update} />
-      {active && (
-        <>
-          <KeymapSection profile={active} reload={reload} />
-          <DeviceSection profile={active} reload={reload} />
-          <ScaleSection profile={active} reload={reload} />
-          <TopBarSection profile={active} reload={reload} />
-          <OverlayAppearanceSection profile={active} reload={reload} />
-        </>
-      )}
-      <PortableSection reload={reload} />
-      <DevPanel />
+    <main className="min-h-screen bg-background text-foreground">
+      <div className="mx-auto max-w-3xl space-y-4 p-6">
+        <h1 className="text-xl font-semibold">kb-hud settings</h1>
+        <ProfilesSection profiles={profiles} activeName={activeName} reload={reload} />
+        <AppearanceSection appearance={appearance} update={update} />
+        {active && (
+          <>
+            <KeymapSection profile={active} reload={reload} />
+            <DeviceSection profile={active} reload={reload} />
+            <ScaleSection profile={active} reload={reload} />
+            <TopBarSection profile={active} reload={reload} />
+            <OverlayAppearanceSection profile={active} reload={reload} />
+          </>
+        )}
+        <PortableSection reload={reload} />
+        <DevPanel />
+      </div>
     </main>
   );
 }

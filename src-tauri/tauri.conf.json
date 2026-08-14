@@ -26,6 +26,7 @@
         "title": "kb-hud settings",
         "width": 760,
         "height": 680,
+        "decorations": false,
         "visible": false
       }
     ],
