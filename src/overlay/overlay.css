@@ -1,3 +1,10 @@
+/*
+ * Overlay colors are derived from the active Catppuccin palette through the
+ * semantic `--overlay-*` custom properties applied to the document root by the
+ * shared theme hook. Per-profile visibility/opacity comes from the `--*-opacity`
+ * variables set on the `.overlay` element by OverlayView.
+ */
+
 .overlay {
   position: relative;
   width: 100%;
@@ -15,8 +22,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(235, 240, 250, 0.85);
-  background: rgba(17, 19, 27, 0.68);
+  color: var(--overlay-pill-text);
+  background: color-mix(
+    in srgb,
+    var(--overlay-pill-fill) calc(var(--pill-fill-opacity, 0.68) * 100%),
+    transparent
+  );
   border-radius: 16px;
   font-family: monospace;
   font-size: 14px;
@@ -24,52 +35,77 @@
   text-align: center;
 }
 
+/* Idle keycaps: theme fill + border, each with its own opacity. The idle fill
+   opacity variable is already zeroed by OverlayView when idle backgrounds are
+   disabled, so this alone hides idle fills without touching active feedback. */
 .keycap {
-  fill: rgba(17, 19, 27, 0.68);
-  stroke: rgba(255, 255, 255, 0.16);
+  fill: var(--overlay-idle-fill);
+  fill-opacity: var(--idle-fill-opacity, 0.68);
+  stroke: var(--overlay-idle-border);
+  stroke-opacity: var(--key-border-opacity, 0.16);
   stroke-width: 1;
 }
 
 .keycap-empty {
-  fill: rgba(17, 19, 27, 0.4);
+  fill-opacity: calc(var(--idle-fill-opacity, 0.68) * 0.6);
 }
 
+/* Pressed-key highlight: active fill at the configured active-key opacity,
+   multiplied by the temporal press-decay intensity applied inline. */
 .keycap-highlight {
-  fill: rgba(110, 205, 255, 0.75);
-  stroke: rgba(180, 235, 255, 0.9);
+  fill: var(--overlay-active-fill);
+  fill-opacity: var(--active-fill-opacity, 0.75);
+  stroke: var(--overlay-active-border);
+  stroke-opacity: var(--active-fill-opacity, 0.75);
   stroke-width: 1.5;
 }
 
+/* Tap and hold labels use a contrasting theme-derived outline (paint-order
+   stroke) for legibility. paint-order is WebKitGTK-compatible, unlike SVG
+   drop-shadow filters which can render inconsistently. */
 .keycap-tap {
-  fill: rgba(232, 236, 245, 0.92);
+  fill: var(--overlay-tap-label);
+  fill-opacity: var(--label-opacity, 0.92);
+  stroke: var(--overlay-tap-label-shadow);
+  stroke-opacity: var(--label-opacity, 0.92);
+  stroke-width: 3;
+  stroke-linejoin: round;
+  paint-order: stroke;
   text-anchor: middle;
   dominant-baseline: middle;
   font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace;
 }
 
 .keycap-hold {
-  fill: rgba(190, 200, 220, 0.7);
+  fill: var(--overlay-hold-label);
+  fill-opacity: var(--label-opacity, 0.92);
+  stroke: var(--overlay-hold-label-shadow);
+  stroke-opacity: var(--label-opacity, 0.92);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  paint-order: stroke;
   text-anchor: middle;
   dominant-baseline: auto;
   font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace;
 }
 
+/* Resolved modifier: distinct accent applied to the idle key border and the
+   active highlight, independent of the idle-background switch. */
 .modifier-resolved .keycap {
-  stroke: rgba(255, 191, 105, 0.95);
+  stroke: var(--overlay-resolved-modifier-border);
+  stroke-opacity: 0.95;
   stroke-width: 2;
 }
 
 .modifier-resolved .keycap-highlight {
-  fill: rgba(255, 166, 77, 0.78);
-  stroke: rgba(255, 220, 160, 0.95);
-}
-
-.modifier-resolved .keycap-tap {
-  fill: rgba(230, 220, 205, 0.58);
+  fill: var(--overlay-resolved-modifier-fill);
+  fill-opacity: var(--active-fill-opacity, 0.75);
+  stroke: var(--overlay-resolved-modifier-border);
+  stroke-opacity: var(--active-fill-opacity, 0.75);
 }
 
 .modifier-resolved .keycap-hold {
-  fill: rgba(255, 235, 195, 1);
+  fill: var(--overlay-resolved-modifier-fill);
   font-weight: 700;
 }
 
@@ -102,39 +138,49 @@
   line-height: 20px;
 }
 
+/* Pill fills take the configured pill background opacity; pill text and
+   borders keep their own theme styling and are not affected by it. */
 .layer-badge,
 .telemetry-status,
 .modifier-badge,
 .indicator-badge {
-  color: rgba(235, 240, 250, 0.9);
-  background: rgba(17, 19, 27, 0.68);
+  color: var(--overlay-pill-text);
+  background: color-mix(
+    in srgb,
+    var(--overlay-pill-fill) calc(var(--pill-fill-opacity, 0.68) * 100%),
+    transparent
+  );
   border-radius: 8px;
   padding: 0 8px;
 }
 
 .modifier-badge {
-  color: rgba(255, 235, 195, 1);
-  border: 1px solid rgba(255, 191, 105, 0.72);
-}
-
-.indicator-badge {
-  color: rgba(180, 235, 255, 1);
+  color: var(--overlay-resolved-modifier-fill);
+  border: 1px solid var(--overlay-resolved-modifier-border);
 }
 
 .split-disconnected {
-  color: rgba(255, 160, 150, 0.95);
+  color: var(--overlay-status-disconnected);
 }
 
 .gaps {
-  color: rgba(255, 200, 120, 0.9);
-  background: rgba(17, 19, 27, 0.68);
+  color: var(--overlay-status-connecting);
+  background: color-mix(
+    in srgb,
+    var(--overlay-pill-fill) calc(var(--pill-fill-opacity, 0.68) * 100%),
+    transparent
+  );
   border-radius: 8px;
   padding: 0 8px;
 }
 
 .conn-error {
-  color: rgba(255, 160, 150, 0.95);
-  background: rgba(17, 19, 27, 0.68);
+  color: var(--overlay-error);
+  background: color-mix(
+    in srgb,
+    var(--overlay-pill-fill) calc(var(--pill-fill-opacity, 0.68) * 100%),
+    transparent
+  );
   border-radius: 8px;
   padding: 0 8px;
   max-width: 420px;
@@ -143,6 +189,7 @@
   white-space: nowrap;
 }
 
+/* Connection-status dot keeps its own theme color, unaffected by pill opacity. */
 .status-dot {
   width: 10px;
   height: 10px;
@@ -151,13 +198,13 @@
 }
 
 .status-connected {
-  background: #4ade80;
+  background: var(--overlay-status-connected);
 }
 
 .status-connecting {
-  background: #facc15;
+  background: var(--overlay-status-connecting);
 }
 
 .status-disconnected {
-  background: #f87171;
+  background: var(--overlay-status-disconnected);
 }

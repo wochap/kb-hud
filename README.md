@@ -84,13 +84,81 @@ mock telemetry controls. Each profile contains:
   `zmk-key-telemetry` keyboard among paired devices)
 - `scale`
 - `hud` visibility flags
+- `overlayAppearance` (idle-key-background visibility plus label, idle
+  background, key border, active key background, and top-bar pill background
+  opacity values, each normalized 0–1)
 
-Profiles are stored in
+Configuration is stored in
 `~/.config/com.wochap.kb-hud/profiles.json`, the Tauri configuration directory.
-Changing the active profile updates the overlay immediately.
+Changing the active profile updates the overlay immediately. Imported keymap
+SVGs are stored under `~/.config/com.wochap.kb-hud/keymaps/` using
+content-derived names.
 
 The tray icon requires a StatusNotifier host, such as a desktop panel with SNI
 support. Its absence does not affect the overlay or settings windows.
+
+## Theming
+
+kb-hud follows the GTK/system light or dark appearance and applies a Catppuccin
+palette to both the settings window and the overlay. All four flavors are
+bundled — Latte, Frappé, Macchiato, and Mocha — and Blue is the primary accent
+in every flavor. You assign which flavor to use for light mode and which for
+dark mode in the settings Appearance section; these assignments are global, not
+per profile, and apply immediately to every open window. First launch and
+legacy configuration default to Latte for light mode and Mocha for dark mode.
+
+The system appearance is always authoritative; there is no manual light/dark
+override. If the platform does not report a known appearance, kb-hud uses the
+configured dark-mode palette. An unknown saved palette falls back to the
+default for the current appearance.
+
+Per-profile overlay controls adjust legibility and transparency without
+restarting:
+
+- **Show idle key backgrounds** — hides idle key fills while preserving
+  pressed-key and resolved-modifier feedback. Re-enabling restores the saved
+  idle opacity.
+- **Label opacity** — tap and hold label visibility, including their
+  contrasting outline.
+- **Idle key background opacity**
+- **Key border opacity**
+- **Active key background opacity** — applies to ordinary presses and resolved
+  modifiers; press-decay animation multiplies this value.
+- **Top-bar pill background opacity** — affects pill fills only, not pill text,
+  borders, or the connection-status dot.
+
+Tap and hold labels use a theme-derived contrasting outline for legibility at
+small sizes and on rotated keys.
+
+Appearance detection reads the GTK settings portal. On compositors or sessions
+without a settings portal, kb-hud falls back to the dark-mode palette; live
+light/dark switching requires a portal-providing environment.
+
+## Portable configuration
+
+The settings window exports a single versioned JSON document containing the
+global palette assignments, the active profile, and every profile's name,
+scale, HUD visibility, overlay appearance, and embedded keymap SVG. Bluetooth
+MAC addresses and original keymap filesystem paths are never included, so an
+export is safe to copy to another machine.
+
+Importing is a validated, replace-all operation:
+
+1. Choose an export file. kb-hud parses and validates the whole document —
+   format/version, bundled theme IDs, unique non-empty profile names, an
+   existing active profile, finite/ranged numeric values, and every embedded
+   keymap — and shows a replacement summary.
+2. Review the summary, which lists profile count, the restored active profile,
+   palette assignments, per-profile keymap results, and the fact that every
+   profile's device selection resets to `"auto"`.
+3. Explicitly confirm replacement, or cancel to leave the current configuration
+   unchanged.
+
+On confirmation kb-hud re-reads and re-validates the file, stores embedded SVGs
+under app-managed content-derived paths, and replaces the configuration as one
+committed operation. A failure before the final commit leaves the previous
+configuration intact. After a successful import both windows reload and BLE
+reconnects using automatic discovery.
 
 ## Build and development
 

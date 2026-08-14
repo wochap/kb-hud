@@ -4,6 +4,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import App from "./App";
 import { OverlayApp } from "./overlay/OverlayApp";
 import { SettingsView } from "./settings/SettingsView";
+import { ThemeProvider } from "./theme/ThemeProvider";
+import "./index.css";
 
 function currentWindowLabel(): string {
   try {
@@ -25,5 +27,7 @@ function root() {
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>{root()}</React.StrictMode>,
+  <React.StrictMode>
+    <ThemeProvider>{root()}</ThemeProvider>
+  </React.StrictMode>,
 );

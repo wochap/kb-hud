@@ -4,7 +4,13 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 
 import { parseKeymapSvg, type KeymapGeometry } from "../keymap/parser";
-import { DEFAULT_HUD_VISIBILITY, type HudVisibility, type Profile } from "../profile";
+import {
+  DEFAULT_HUD_VISIBILITY,
+  DEFAULT_OVERLAY_APPEARANCE,
+  type HudVisibility,
+  type OverlayAppearance,
+  type Profile,
+} from "../profile";
 import {
   DISCONNECTED_STATE,
   TELEMETRY_STATE_EVENT,
@@ -54,6 +60,9 @@ export function OverlayApp() {
   const [reloadCount, setReloadCount] = useState(0);
   const [telemetry, setTelemetry] = useState<TelemetryState>(DISCONNECTED_STATE);
   const [hud, setHud] = useState<HudVisibility>(DEFAULT_HUD_VISIBILITY);
+  const [overlayAppearance, setOverlayAppearance] = useState<OverlayAppearance>(
+    DEFAULT_OVERLAY_APPEARANCE,
+  );
 
   useEffect(() => {
     const unlisten = listen<TelemetryState>(TELEMETRY_STATE_EVENT, (event) => {
@@ -80,7 +89,12 @@ export function OverlayApp() {
       try {
         const profile = await invoke<Profile>("get_active_profile");
         svgPath = profile.svgPath;
-        if (!cancelled) setHud(profile.hud ?? DEFAULT_HUD_VISIBILITY);
+        if (!cancelled) {
+          setHud(profile.hud ?? DEFAULT_HUD_VISIBILITY);
+          setOverlayAppearance(
+            profile.overlayAppearance ?? DEFAULT_OVERLAY_APPEARANCE,
+          );
+        }
       } catch {
         // backend unavailable (plain vite dev): fall through to dev default
       }
@@ -110,7 +124,13 @@ export function OverlayApp() {
 
   return (
     <ErrorBoundary>
-      <OverlayView keymap={keymap} state={telemetry} error={error} hud={hud} />
+      <OverlayView
+        keymap={keymap}
+        state={telemetry}
+        error={error}
+        hud={hud}
+        overlayAppearance={overlayAppearance}
+      />
     </ErrorBoundary>
   );
 }

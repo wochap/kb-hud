@@ -20,8 +20,10 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
 bluer = { version = "0.17.4", features = ["bluetoothd"] }
 futures-util = "0.3.34"
 tokio = { version = "1.53.1", features = ["time", "macros", "sync"] }

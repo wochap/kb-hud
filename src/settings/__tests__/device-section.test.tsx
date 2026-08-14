@@ -1,7 +1,11 @@
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_HUD_VISIBILITY, type Profile } from "../../profile";
+import {
+  DEFAULT_HUD_VISIBILITY,
+  DEFAULT_OVERLAY_APPEARANCE,
+  type Profile,
+} from "../../profile";
 import { DeviceSection } from "../SettingsView";
 
 function profile(patch: Partial<Profile> = {}): Profile {
@@ -11,6 +15,7 @@ function profile(patch: Partial<Profile> = {}): Profile {
     deviceMac: "auto",
     scale: 1,
     hud: DEFAULT_HUD_VISIBILITY,
+    overlayAppearance: DEFAULT_OVERLAY_APPEARANCE,
     ...patch,
   };
 }

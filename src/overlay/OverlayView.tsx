@@ -1,6 +1,12 @@
+import type { CSSProperties } from "react";
 import type { KeyGeometry, KeymapGeometry } from "../keymap/parser";
 import { effectiveLayerIndex, resolveKey } from "../keymap/resolve";
-import { DEFAULT_HUD_VISIBILITY, type HudVisibility } from "../profile";
+import {
+  DEFAULT_HUD_VISIBILITY,
+  DEFAULT_OVERLAY_APPEARANCE,
+  type HudVisibility,
+  type OverlayAppearance,
+} from "../profile";
 import {
   MOD_LALT,
   MOD_LCTL,
@@ -135,9 +141,16 @@ export interface OverlayViewProps {
   state: TelemetryState;
   error?: string | null;
   hud?: HudVisibility;
+  overlayAppearance?: OverlayAppearance;
 }
 
-export function OverlayView({ keymap, state, error, hud = DEFAULT_HUD_VISIBILITY }: OverlayViewProps) {
+export function OverlayView({
+  keymap,
+  state,
+  error,
+  hud = DEFAULT_HUD_VISIBILITY,
+  overlayAppearance = DEFAULT_OVERLAY_APPEARANCE,
+}: OverlayViewProps) {
   const intensities = usePressHighlight(state.pressed);
 
   if (!keymap) {
@@ -154,8 +167,22 @@ export function OverlayView({ keymap, state, error, hud = DEFAULT_HUD_VISIBILITY
   const activeModifiers = MODIFIERS.filter(([bit]) => state.modifiers & bit);
   const indicators = indicatorNames(state.hidIndicators ?? 0);
 
+  const overlayStyle = {
+    "--label-opacity": String(overlayAppearance.labelOpacity),
+    "--idle-fill-opacity": String(
+      overlayAppearance.showIdleKeyBackgrounds
+        ? overlayAppearance.idleKeyBackgroundOpacity
+        : 0,
+    ),
+    "--key-border-opacity": String(overlayAppearance.keyBorderOpacity),
+    "--active-fill-opacity": String(overlayAppearance.activeKeyBackgroundOpacity),
+    "--pill-fill-opacity": String(
+      overlayAppearance.topBarPillBackgroundOpacity,
+    ),
+  } as CSSProperties;
+
   return (
-    <div className="overlay">
+    <div className="overlay" style={overlayStyle}>
       <svg
         viewBox={`${minX - OVERLAY_PADDING} ${minY - OVERLAY_PADDING} ${
           width + OVERLAY_PADDING * 2
