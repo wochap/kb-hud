@@ -35,13 +35,21 @@ the window when the scale changes.
 - **THEN** the overlay window resizes to 1.5 times the native keymap dimensions
 
 ### Requirement: Settings window
-The system SHALL provide a separate, normally decorated settings window for
-profile management, device selection, scale adjustment, and the mock
-telemetry dev panel, independent of overlay visibility.
+The system SHALL provide a separate, normally decorated settings window,
+independent of overlay visibility, for profile management, global light/dark
+palette selection, device selection, scale and HUD adjustment, overlay
+appearance controls, portable configuration export/import, and the mock
+telemetry dev panel. The settings interface SHALL use Tailwind CSS and
+shadcn/ui components and SHALL render with the same active semantic palette
+as the overlay.
 
 #### Scenario: Open settings from tray
 - **WHEN** the user activates the tray's settings entry
-- **THEN** the settings window opens (or is brought forward if already open) without hiding the overlay
+- **THEN** the themed settings window opens or is brought forward without hiding the overlay
+
+#### Scenario: Settings controls use shared theme
+- **WHEN** the active system appearance or assigned palette changes
+- **THEN** settings surfaces and controls update through the shared semantic theme without affecting window independence
 
 ### Requirement: Tray presence
 The system SHALL provide a StatusNotifier tray icon offering: open

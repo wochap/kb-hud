@@ -11,19 +11,22 @@ and the settings UI for managing profiles, SVG paths, and device selection.
 ### Requirement: Profile data model
 The system SHALL support profiles, each containing: a name, a keymap SVG
 path, a device selection (either a Bluetooth MAC address or `auto`), a
-render scale factor, and an HUD visibility block with one boolean per top
-bar pill category (layer, connection, gaps, firmware drops, battery,
-transport, modifiers). Exactly one profile SHALL be active at a time.
-Profiles persisted without an HUD block SHALL behave as if every toggle is
-enabled.
+render scale factor, an HUD visibility block with one boolean per top bar
+pill category (layer, connection, gaps, firmware drops, battery, transport,
+modifiers), and an overlay appearance block containing idle-key-background
+visibility plus label, idle-background, key-border, active-key-background,
+and top-bar-pill-background opacity values. Exactly one profile SHALL be
+active at a time. Profiles persisted without an HUD or overlay appearance
+block SHALL receive defaults that preserve the pre-change visible HUD and
+overlay appearance.
 
 #### Scenario: Profile fields
 - **WHEN** a profile is created
-- **THEN** it stores name, svgPath, deviceMac or `auto`, scale, and HUD visibility toggles
+- **THEN** it stores name, svgPath, deviceMac or `auto`, scale, HUD visibility toggles, and overlay appearance controls
 
 #### Scenario: Legacy profile loads
-- **WHEN** a persisted profile has no HUD visibility block
-- **THEN** it loads with all pill toggles enabled
+- **WHEN** a persisted profile has no HUD visibility or overlay appearance block
+- **THEN** it loads with all pill toggles enabled, idle key backgrounds enabled, and opacity defaults matching the prior overlay appearance
 
 ### Requirement: Configuration persistence
 The system SHALL persist profiles and the active profile selection as JSON
@@ -38,6 +41,21 @@ default profile with `auto` device selection and scale 1.0.
 #### Scenario: Edit survives restart
 - **WHEN** the user edits the active profile's SVG path and restarts the app
 - **THEN** the edited value is loaded at startup
+
+### Requirement: Overlay appearance settings UI
+The settings window SHALL provide per-profile controls for showing idle key backgrounds and for label, idle key background, key border, active key background, and top-bar pill background opacity. Changes SHALL be persisted through profile configuration and reflected by the running overlay without restart.
+
+#### Scenario: Disable idle backgrounds
+- **WHEN** the user disables idle key backgrounds for the active profile
+- **THEN** the setting is persisted and idle key fills disappear immediately without changing the saved idle-background opacity
+
+#### Scenario: Adjust an opacity
+- **WHEN** the user changes an overlay opacity slider
+- **THEN** the normalized value is persisted for the active profile and the corresponding overlay elements update without restart
+
+#### Scenario: Switch profiles
+- **WHEN** the user activates a profile with different overlay appearance settings
+- **THEN** the overlay immediately applies that profile's background visibility and opacity values
 
 ### Requirement: Profile management UI
 The settings window SHALL allow creating, renaming, deleting, and selecting

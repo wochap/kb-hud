@@ -26,15 +26,41 @@ rendering partial results.
 - **THEN** the settings UI displays a parse error identifying the problem and the overlay keeps its last valid keymap
 
 ### Requirement: Keycap rendering
-The system SHALL render its own keycaps from parsed geometry in a dark translucent style, displaying each resolved tap label and hold sub-label. When a pressed key's normalized hold label matches an active effective modifier, its hold role SHALL receive distinct resolved-modifier styling.
+The system SHALL render its own keycaps from parsed geometry using semantic colors from the active application palette, displaying each resolved tap label and hold sub-label. Tap and hold labels SHALL use a theme-derived contrasting shadow. When a pressed key's normalized hold label matches an active effective modifier, its hold role SHALL receive distinct resolved-modifier styling.
 
 #### Scenario: Layer rendered
 - **WHEN** a keymap is loaded and a layer is active
-- **THEN** all positions render as keycaps with resolved labels at geometry-derived positions
+- **THEN** all positions render as theme-colored keycaps with resolved labels and contrasting label shadows at geometry-derived positions
 
 #### Scenario: Home-row hold resolves
 - **WHEN** a pressed home-row key has hold label `LSHIFT` and telemetry reports LSHIFT active
-- **THEN** that keycap visually promotes its hold role rather than appearing only as a physically held tap key
+- **THEN** that keycap visually promotes its hold role with resolved-modifier theme colors rather than appearing only as a physically held tap key
+
+### Requirement: Configurable key appearance
+The overlay SHALL apply the active profile's idle-key-background visibility and its label, idle key background, key border, and active key background opacity values. Disabling idle key backgrounds SHALL affect only idle fills; ordinary pressed-key backgrounds and resolved-modifier backgrounds SHALL remain independently rendered using the active-key opacity and their distinct theme colors. Press-decay intensity SHALL multiply the configured active-key opacity.
+
+#### Scenario: Backgrounds disabled during ordinary press
+- **WHEN** idle key backgrounds are disabled and an ordinary key is pressed
+- **THEN** idle fills remain transparent while the pressed key displays its themed active background at the configured active-key opacity
+
+#### Scenario: Backgrounds disabled during resolved modifier
+- **WHEN** idle key backgrounds are disabled and a pressed hold resolves to an active modifier
+- **THEN** that key displays the distinct resolved-modifier background at the configured active-key opacity
+
+#### Scenario: Restore idle background
+- **WHEN** the user disables and later re-enables idle key backgrounds
+- **THEN** idle fills return at the previously configured idle-key-background opacity
+
+#### Scenario: Highlight decay respects opacity
+- **WHEN** a released key highlight fades
+- **THEN** its animation intensity decays from the profile's configured active-key opacity
+
+### Requirement: Configurable top-bar pill backgrounds
+The overlay SHALL apply the active profile's top-bar pill background opacity to the fills behind layer, telemetry, modifier, indicator, gap, firmware-drop, and connection-error pills. This opacity SHALL NOT alter pill text, pill borders, or the connection-status dot.
+
+#### Scenario: Reduce pill background opacity
+- **WHEN** the user lowers top-bar pill background opacity
+- **THEN** pill fills become more transparent while their text, borders, and connection-status dot retain their own theme styling
 
 ### Requirement: Effective layer selection
 The system SHALL determine the effective layer as the highest set bit of
