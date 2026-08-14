@@ -44,11 +44,18 @@ left-central split; this does not affect key-position rendering or telemetry
 transport.
 
 The keyboard must already be paired with the host. The service UUID is not
-advertised, so kb-hud connects to the selected paired device and performs GATT
-discovery. The settings window lists paired devices and stores the selected MAC
-in the active profile. Reconnection uses exponential backoff after sleep or
-loss of signal. The `auto` profile value is a legacy alias match, not generic
-service-based discovery; select an explicit device for other keyboard names.
+advertised, so kb-hud identifies compatible keyboards among paired devices.
+With `deviceMac: "auto"`, kb-hud enumerates paired devices and uses BlueZ's
+cached service UUID metadata when available; when that cache is missing or
+inconclusive it briefly connects to paired candidates and inspects their GATT
+tables for the telemetry service and characteristic. A unique compatible
+keyboard is then selected automatically. If several compatible keyboards are
+paired, discovery reports the ambiguity and requires an explicit MAC instead.
+A sleeping or out-of-range keyboard cannot be probed, so identification may be
+delayed; connection failures are retried rather than treated as
+incompatibility. The settings window lists paired devices and stores the
+selected MAC in the active profile. Reconnection uses exponential backoff
+after sleep or loss of signal.
 
 ## Keymap SVG
 
@@ -73,8 +80,8 @@ mock telemetry controls. Each profile contains:
 
 - `name`
 - `svgPath`
-- `deviceMac` (an explicit Bluetooth MAC, or the limited `"auto"` mode described
-  above)
+- `deviceMac` (an explicit Bluetooth MAC, or `"auto"` to discover a compatible
+  `zmk-key-telemetry` keyboard among paired devices)
 - `scale`
 - `hud` visibility flags
 

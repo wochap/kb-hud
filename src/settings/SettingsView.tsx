@@ -232,7 +232,7 @@ function KeymapSection({
   );
 }
 
-function DeviceSection({
+export function DeviceSection({
   profile,
   reload,
 }: {
@@ -276,7 +276,7 @@ function DeviceSection({
             checked={isAuto}
             onChange={() => setDevice("auto")}
           />
-          auto (paired “Chocochap”)
+          auto (compatible zmk-key-telemetry keyboard)
         </label>
         <label>
           <input

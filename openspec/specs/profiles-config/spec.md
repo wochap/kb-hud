@@ -63,11 +63,17 @@ position count, or the specific parse error) immediately after selection.
 
 ### Requirement: Device selection UI
 The settings UI SHALL offer device selection as `auto` or an explicit MAC
-address, and SHALL list paired BlueZ devices (name + MAC) discovered by the
-backend to assist selection.
+address, SHALL describe `auto` as discovery of a compatible
+`zmk-key-telemetry` keyboard without naming a particular deployment, and
+SHALL list paired BlueZ devices (name + MAC) discovered by the backend to
+assist explicit selection.
+
+#### Scenario: Generic auto option shown
+- **WHEN** the user opens device selection
+- **THEN** the `auto` option describes compatible telemetry keyboard discovery and contains no deployment-specific Bluetooth alias
 
 #### Scenario: Device list shown
-- **WHEN** the user opens device selection
+- **WHEN** the user requests the paired-device list
 - **THEN** paired BlueZ devices are listed with names and MAC addresses
 
 ### Requirement: HUD visibility settings UI

@@ -11,20 +11,38 @@ reconnection after keyboard sleep.
 
 ### Requirement: Device auto-detection
 The system SHALL enumerate paired BlueZ devices and, when the active
-profile's device selection is `auto`, select the unique device whose alias
-matches the configured telemetry keyboard name (default `Chocochap`).
+profile's device selection is `auto`, select the unique device compatible
+with `zmk-key-telemetry`. Compatibility SHALL require telemetry service
+`9e7a7d70-df1b-4f76-9d45-8c3f4a6b2100` and characteristic
+`9e7a7d70-df1b-4f76-9d45-8c3f4a6b2101` and SHALL NOT depend on the device
+alias, keyboard model, or deployment name. The system SHALL use BlueZ's
+cached service UUID metadata when available and SHALL connect to probe
+paired candidates when metadata is insufficient to identify compatibility
+reliably.
 
-#### Scenario: Single matching paired device
-- **WHEN** one paired BlueZ device has alias `Chocochap` and the profile device is `auto`
-- **THEN** the system connects to that device
+#### Scenario: Single compatible paired device in cached metadata
+- **WHEN** exactly one paired device has the telemetry service UUID in BlueZ's cached UUID metadata and the profile device is `auto`
+- **THEN** the system selects that device and validates the telemetry characteristic during connection
 
-#### Scenario: No matching device
-- **WHEN** no paired device matches and the profile device is `auto`
-- **THEN** the system reports a "no telemetry keyboard found" error in the connection status without crashing
+#### Scenario: Metadata unavailable
+- **WHEN** BlueZ does not expose sufficient cached UUID metadata for paired candidates and the profile device is `auto`
+- **THEN** the system probes paired candidates by connecting and inspecting their GATT service and characteristic UUIDs
 
-#### Scenario: Multiple matching devices
-- **WHEN** more than one paired device matches and the profile device is `auto`
-- **THEN** the system reports an ambiguity error and requires an explicit MAC address in the profile
+#### Scenario: Bluetooth name is irrelevant
+- **WHEN** a paired device exposes the required telemetry service and characteristic under any Bluetooth alias and the profile device is `auto`
+- **THEN** the device remains eligible for automatic selection
+
+#### Scenario: No compatible device
+- **WHEN** no paired device can be identified as compatible and the profile device is `auto`
+- **THEN** the system reports a "no telemetry keyboard found" error in the connection status without crashing and retains retry behavior for temporarily unavailable candidates
+
+#### Scenario: Multiple compatible devices
+- **WHEN** more than one paired device is identified as compatible and the profile device is `auto`
+- **THEN** the system reports an ambiguity error that lists the candidates and requires an explicit MAC address in the profile
+
+#### Scenario: Explicit device selection
+- **WHEN** the profile contains an explicit valid Bluetooth MAC address
+- **THEN** the system connects to that address without running automatic candidate selection and validates its telemetry GATT interface through the existing connection path
 
 ### Requirement: GATT subscription
 The system SHALL connect to the selected device, discover telemetry service `9e7a7d70-df1b-4f76-9d45-8c3f4a6b2100`, subscribe to notifications on characteristic `9e7a7d70-df1b-4f76-9d45-8c3f4a6b2101`, and perform an initial characteristic read to obtain an authoritative snapshot frame.

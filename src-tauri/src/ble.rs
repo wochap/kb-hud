@@ -1,9 +1,10 @@
 //! BLE telemetry source: BlueZ GATT via the `bluer` crate.
 
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Duration;
 
-use bluer::{Adapter, Address, DeviceEvent, DeviceProperty, Session};
+use bluer::{Adapter, Address, Device, DeviceEvent, DeviceProperty, Session};
 use futures_util::StreamExt;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
@@ -14,7 +15,6 @@ use crate::telemetry::state::ConnectionStatus;
 
 pub const SERVICE_UUID: &str = "9e7a7d70-df1b-4f76-9d45-8c3f4a6b2100";
 pub const CHARACTERISTIC_UUID: &str = "9e7a7d70-df1b-4f76-9d45-8c3f4a6b2101";
-pub const DEFAULT_ALIAS: &str = "Chocochap";
 
 const BACKOFF_INITIAL: Duration = Duration::from_secs(1);
 const BACKOFF_MAX: Duration = Duration::from_secs(30);
@@ -155,16 +155,7 @@ async fn connection_cycle(hub: &SharedHub, device_mac: &str) -> Outcome {
         Ok(services) => services,
         Err(e) => return Outcome::Ended(Some(format!("service discovery failed: {e}"))),
     };
-    let mut telemetry_service = None;
-    for service in &services {
-        if let Ok(uuid) = service.uuid().await {
-            if uuid.to_string() == SERVICE_UUID {
-                telemetry_service = Some(service);
-                break;
-            }
-        }
-    }
-    let Some(service) = telemetry_service else {
+    let Some(service) = find_service_by_uuid(&services, SERVICE_UUID).await else {
         let _ = device.disconnect().await;
         return Outcome::Fatal("unsupported device: telemetry service not found".to_string());
     };
@@ -173,16 +164,9 @@ async fn connection_cycle(hub: &SharedHub, device_mac: &str) -> Outcome {
         Ok(chars) => chars,
         Err(e) => return Outcome::Ended(Some(format!("characteristic discovery failed: {e}"))),
     };
-    let mut telemetry_characteristic = None;
-    for characteristic in &characteristics {
-        if let Ok(uuid) = characteristic.uuid().await {
-            if uuid.to_string() == CHARACTERISTIC_UUID {
-                telemetry_characteristic = Some(characteristic);
-                break;
-            }
-        }
-    }
-    let Some(characteristic) = telemetry_characteristic else {
+    let Some(characteristic) =
+        find_characteristic_by_uuid(&characteristics, CHARACTERISTIC_UUID).await
+    else {
         let _ = device.disconnect().await;
         return Outcome::Fatal(
             "unsupported device: telemetry characteristic not found".to_string(),
@@ -285,6 +269,8 @@ pub async fn list_paired_devices() -> Result<Vec<PairedDevice>, String> {
 /// Resolves the profile device selection to a concrete adapter + address.
 /// Returns an Outcome so fatal auto-detect errors stop the retry loop.
 async fn resolve_device(device_mac: &str) -> Result<(Adapter, Address), Outcome> {
+    let selection = parse_device_selection(device_mac).map_err(Outcome::Fatal)?;
+
     let session = Session::new()
         .await
         .map_err(|e| Outcome::Ended(Some(format!("no system Bluetooth bus: {e}"))))?;
@@ -293,13 +279,34 @@ async fn resolve_device(device_mac: &str) -> Result<(Adapter, Address), Outcome>
         .await
         .map_err(|e| Outcome::Ended(Some(format!("no default Bluetooth adapter: {e}"))))?;
 
-    if device_mac != AUTO_DEVICE {
-        let address = Address::from_str(device_mac)
-            .map_err(|_| Outcome::Fatal(format!("invalid Bluetooth MAC address: {device_mac}")))?;
-        return Ok((adapter, address));
+    match selection {
+        DeviceSelection::Explicit(address) => Ok((adapter, address)),
+        DeviceSelection::Auto => auto_resolve(&adapter).await,
     }
+}
 
-    let mut matches = Vec::new();
+/// Interprets the profile device value without any BlueZ I/O.
+/// Explicit MAC addresses bypass candidate selection entirely.
+fn parse_device_selection(device_mac: &str) -> Result<DeviceSelection, String> {
+    if device_mac == AUTO_DEVICE {
+        return Ok(DeviceSelection::Auto);
+    }
+    Address::from_str(device_mac)
+        .map(DeviceSelection::Explicit)
+        .map_err(|_| format!("invalid Bluetooth MAC address: {device_mac}"))
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum DeviceSelection {
+    Explicit(Address),
+    Auto,
+}
+
+/// Enumerates paired devices, classifies them by cached service UUID
+/// metadata, probes the unknown ones, and selects the unique compatible
+/// telemetry keyboard.
+async fn auto_resolve(adapter: &Adapter) -> Result<(Adapter, Address), Outcome> {
+    let mut candidates = Vec::new();
     let addresses = adapter
         .device_addresses()
         .await
@@ -311,25 +318,348 @@ async fn resolve_device(device_mac: &str) -> Result<(Adapter, Address), Outcome>
         if !device.is_paired().await.unwrap_or(false) {
             continue;
         }
-        if let Ok(alias) = device.alias().await {
-            if alias == DEFAULT_ALIAS {
-                matches.push(address);
-            }
+        let alias = device.alias().await.unwrap_or_default();
+        let cached_service_uuids = match device.uuids().await {
+            Ok(Some(uuids)) => Some(uuids.iter().map(|uuid| uuid.to_string()).collect()),
+            _ => None,
+        };
+        candidates.push(Candidate {
+            address: address.to_string(),
+            alias,
+            cached_service_uuids,
+        });
+    }
+
+    let mut probes = HashMap::new();
+    for candidate in &candidates {
+        if cached_service_match(&candidate.cached_service_uuids).is_some() {
+            continue;
+        }
+        let Ok(address) = Address::from_str(&candidate.address) else {
+            continue;
+        };
+        let Ok(device) = adapter.device(address) else {
+            continue;
+        };
+        let outcome = probe_candidate(&device).await;
+        probes.insert(candidate.address.clone(), outcome);
+    }
+
+    match select_auto_candidate(&candidates, &probes) {
+        AutoSelection::Selected(address) => {
+            let address = Address::from_str(&address)
+                .map_err(|e| Outcome::Ended(Some(format!("invalid candidate address: {e}"))))?;
+            Ok((adapter.clone(), address))
+        }
+        AutoSelection::Ambiguous(addresses) => {
+            let listed = addresses
+                .iter()
+                .map(|address| {
+                    let alias = candidates
+                        .iter()
+                        .find(|candidate| &candidate.address == address)
+                        .map(|candidate| candidate.alias.as_str())
+                        .unwrap_or_default();
+                    if alias.is_empty() {
+                        address.clone()
+                    } else {
+                        format!("{alias} ({address})")
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            Err(Outcome::Fatal(format!(
+                "multiple compatible telemetry keyboards found ({listed}); set an explicit MAC in the profile"
+            )))
+        }
+        AutoSelection::NoneFound => Err(Outcome::Ended(Some(
+            "no telemetry keyboard found: no paired device exposes the zmk-key-telemetry service"
+                .to_string(),
+        ))),
+        AutoSelection::Unresolved => Err(Outcome::Ended(Some(
+            "no telemetry keyboard confirmed yet: some paired devices could not be probed"
+                .to_string(),
+        ))),
+    }
+}
+
+/// One paired device considered during auto-discovery.
+#[derive(Debug, Clone)]
+struct Candidate {
+    address: String,
+    alias: String,
+    /// Cached `Device1.UUIDs` service metadata when BlueZ has resolved it.
+    cached_service_uuids: Option<Vec<String>>,
+}
+
+/// Result of connecting to a candidate and inspecting its GATT table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProbeOutcome {
+    /// Connected and confirmed both telemetry UUIDs.
+    Compatible,
+    /// Connected and confirmed the telemetry GATT interface is absent.
+    Incompatible,
+    /// Temporary connection or service-resolution failure.
+    Failed,
+}
+
+/// Resolution result for `deviceMac: "auto"`.
+#[derive(Debug, PartialEq, Eq)]
+enum AutoSelection {
+    Selected(String),
+    Ambiguous(Vec<String>),
+    NoneFound,
+    /// No compatible device confirmed; at least one candidate unresolved.
+    Unresolved,
+}
+
+/// Reports cached service UUID metadata as confirming compatibility,
+/// denying it, or insufficient (`None` means probing is required).
+fn cached_service_match(cached_service_uuids: &Option<Vec<String>>) -> Option<bool> {
+    cached_service_uuids.as_ref().map(|uuids| {
+        uuids
+            .iter()
+            .any(|uuid| uuid.eq_ignore_ascii_case(SERVICE_UUID))
+    })
+}
+
+/// Selects the auto-discovery target from paired candidates and probe results.
+/// Aliases never influence selection; only the telemetry service UUID does.
+fn select_auto_candidate(
+    candidates: &[Candidate],
+    probes: &HashMap<String, ProbeOutcome>,
+) -> AutoSelection {
+    let mut compatible = Vec::new();
+    let mut unresolved = false;
+
+    for candidate in candidates {
+        match cached_service_match(&candidate.cached_service_uuids) {
+            Some(true) => compatible.push(candidate.address.clone()),
+            Some(false) => {}
+            None => match probes.get(&candidate.address) {
+                Some(ProbeOutcome::Compatible) => compatible.push(candidate.address.clone()),
+                Some(ProbeOutcome::Incompatible) => {}
+                Some(ProbeOutcome::Failed) | None => unresolved = true,
+            },
         }
     }
 
-    match matches.len() {
-        0 => Err(Outcome::Ended(Some(
-            "no telemetry keyboard found: no paired device named 'Chocochap'".to_string(),
-        ))),
-        1 => Ok((adapter, matches[0])),
-        _ => Err(Outcome::Fatal(format!(
-            "multiple paired devices named '{DEFAULT_ALIAS}' ({}); set an explicit MAC in the profile",
-            matches
-                .iter()
-                .map(|a| a.to_string())
-                .collect::<Vec<_>>()
-                .join(", ")
-        ))),
+    match compatible.len() {
+        0 if unresolved => AutoSelection::Unresolved,
+        0 => AutoSelection::NoneFound,
+        1 => AutoSelection::Selected(compatible.remove(0)),
+        _ => AutoSelection::Ambiguous(compatible),
+    }
+}
+
+/// Connects to a paired candidate and inspects its GATT table for the
+/// telemetry interface. Always disconnects afterwards so the normal
+/// connection cycle owns the connection lifecycle.
+async fn probe_candidate(device: &Device) -> ProbeOutcome {
+    let outcome = probe_gatt(device).await;
+    let _ = device.disconnect().await;
+    outcome
+}
+
+async fn probe_gatt(device: &Device) -> ProbeOutcome {
+    if device.connect().await.is_err() {
+        return ProbeOutcome::Failed;
+    }
+    let Ok(services) = device.services().await else {
+        return ProbeOutcome::Failed;
+    };
+    let Some(service) = find_service_by_uuid(&services, SERVICE_UUID).await else {
+        return ProbeOutcome::Incompatible;
+    };
+    let Ok(characteristics) = service.characteristics().await else {
+        return ProbeOutcome::Failed;
+    };
+    match find_characteristic_by_uuid(&characteristics, CHARACTERISTIC_UUID).await {
+        Some(_) => ProbeOutcome::Compatible,
+        None => ProbeOutcome::Incompatible,
+    }
+}
+
+/// Finds the first service exposing the given UUID. Shared by connection
+/// validation and discovery probes so compatibility cannot drift.
+async fn find_service_by_uuid<'a>(
+    services: &'a [bluer::gatt::remote::Service],
+    uuid: &str,
+) -> Option<&'a bluer::gatt::remote::Service> {
+    for service in services {
+        if let Ok(service_uuid) = service.uuid().await {
+            if service_uuid.to_string().eq_ignore_ascii_case(uuid) {
+                return Some(service);
+            }
+        }
+    }
+    None
+}
+
+/// Finds the first characteristic exposing the given UUID. Shared by
+/// connection validation and discovery probes so compatibility cannot drift.
+async fn find_characteristic_by_uuid<'a>(
+    characteristics: &'a [bluer::gatt::remote::Characteristic],
+    uuid: &str,
+) -> Option<&'a bluer::gatt::remote::Characteristic> {
+    for characteristic in characteristics {
+        if let Ok(characteristic_uuid) = characteristic.uuid().await {
+            if characteristic_uuid.to_string().eq_ignore_ascii_case(uuid) {
+                return Some(characteristic);
+            }
+        }
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn candidate(address: &str, alias: &str, cached_service_uuids: Option<Vec<&str>>) -> Candidate {
+        Candidate {
+            address: address.to_string(),
+            alias: alias.to_string(),
+            cached_service_uuids: cached_service_uuids
+                .map(|uuids| uuids.into_iter().map(String::from).collect()),
+        }
+    }
+
+    fn probes(entries: &[(&str, ProbeOutcome)]) -> HashMap<String, ProbeOutcome> {
+        entries
+            .iter()
+            .map(|(address, outcome)| (address.to_string(), *outcome))
+            .collect()
+    }
+
+    #[test]
+    fn unique_cached_service_match_is_selected() {
+        let candidates = vec![
+            candidate("AA:BB:CC:DD:EE:01", "keyboard", Some(vec![SERVICE_UUID])),
+            candidate(
+                "AA:BB:CC:DD:EE:02",
+                "headphones",
+                Some(vec!["0000110b-0000-1000-8000-00805f9b34fb"]),
+            ),
+        ];
+        let selection = select_auto_candidate(&candidates, &probes(&[]));
+        assert_eq!(
+            selection,
+            AutoSelection::Selected("AA:BB:CC:DD:EE:01".to_string())
+        );
+    }
+
+    #[test]
+    fn missing_cached_metadata_uses_probe_result() {
+        let candidates = vec![candidate("AA:BB:CC:DD:EE:01", "keyboard", None)];
+        let selection = select_auto_candidate(
+            &candidates,
+            &probes(&[("AA:BB:CC:DD:EE:01", ProbeOutcome::Compatible)]),
+        );
+        assert_eq!(
+            selection,
+            AutoSelection::Selected("AA:BB:CC:DD:EE:01".to_string())
+        );
+    }
+
+    #[test]
+    fn aliases_are_not_a_selection_signal() {
+        let candidates = vec![
+            candidate("AA:BB:CC:DD:EE:01", "Chocochap", None),
+            candidate("AA:BB:CC:DD:EE:02", "Totally Different Name", None),
+        ];
+        let selection = select_auto_candidate(
+            &candidates,
+            &probes(&[
+                ("AA:BB:CC:DD:EE:01", ProbeOutcome::Incompatible),
+                ("AA:BB:CC:DD:EE:02", ProbeOutcome::Compatible),
+            ]),
+        );
+        assert_eq!(
+            selection,
+            AutoSelection::Selected("AA:BB:CC:DD:EE:02".to_string())
+        );
+    }
+
+    #[test]
+    fn no_compatible_devices_is_definitive() {
+        let candidates = vec![
+            candidate("AA:BB:CC:DD:EE:01", "a", None),
+            candidate(
+                "AA:BB:CC:DD:EE:02",
+                "b",
+                Some(vec!["0000110b-0000-1000-8000-00805f9b34fb"]),
+            ),
+        ];
+        let selection = select_auto_candidate(
+            &candidates,
+            &probes(&[("AA:BB:CC:DD:EE:01", ProbeOutcome::Incompatible)]),
+        );
+        assert_eq!(selection, AutoSelection::NoneFound);
+    }
+
+    #[test]
+    fn cached_metadata_without_service_is_excluded_without_probing() {
+        let candidates = vec![candidate(
+            "AA:BB:CC:DD:EE:01",
+            "speaker",
+            Some(vec!["0000110b-0000-1000-8000-00805f9b34fb"]),
+        )];
+        let selection = select_auto_candidate(&candidates, &probes(&[]));
+        assert_eq!(selection, AutoSelection::NoneFound);
+    }
+
+    #[test]
+    fn multiple_compatible_devices_are_ambiguous() {
+        let candidates = vec![
+            candidate("AA:BB:CC:DD:EE:01", "left", Some(vec![SERVICE_UUID])),
+            candidate("AA:BB:CC:DD:EE:02", "right", None),
+            candidate("AA:BB:CC:DD:EE:03", "mouse", None),
+        ];
+        let selection = select_auto_candidate(
+            &candidates,
+            &probes(&[
+                ("AA:BB:CC:DD:EE:02", ProbeOutcome::Compatible),
+                ("AA:BB:CC:DD:EE:03", ProbeOutcome::Incompatible),
+            ]),
+        );
+        assert_eq!(
+            selection,
+            AutoSelection::Ambiguous(vec![
+                "AA:BB:CC:DD:EE:01".to_string(),
+                "AA:BB:CC:DD:EE:02".to_string(),
+            ])
+        );
+    }
+
+    #[test]
+    fn temporary_probe_failures_are_retryable() {
+        let candidates = vec![
+            candidate("AA:BB:CC:DD:EE:01", "a", None),
+            candidate("AA:BB:CC:DD:EE:02", "b", None),
+        ];
+        let selection = select_auto_candidate(
+            &candidates,
+            &probes(&[
+                ("AA:BB:CC:DD:EE:01", ProbeOutcome::Incompatible),
+                ("AA:BB:CC:DD:EE:02", ProbeOutcome::Failed),
+            ]),
+        );
+        assert_eq!(selection, AutoSelection::Unresolved);
+    }
+
+    #[test]
+    fn explicit_mac_bypasses_candidate_selection() {
+        assert_eq!(
+            parse_device_selection("AA:BB:CC:DD:EE:FF"),
+            Ok(DeviceSelection::Explicit(
+                Address::from_str("AA:BB:CC:DD:EE:FF").unwrap()
+            ))
+        );
+        assert!(matches!(
+            parse_device_selection("auto"),
+            Ok(DeviceSelection::Auto)
+        ));
+        assert!(parse_device_selection("not-a-mac").is_err());
     }
 }
