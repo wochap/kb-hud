@@ -21,7 +21,7 @@ export const FIELD_CENTRAL_BATTERY = 1 << 6;
 export const FIELD_PERIPHERAL_BATTERY = 1 << 7;
 export const FIELD_SPLIT_STATUS = 1 << 8;
 
-/** Full keyboard state emitted by the backend on every valid v2 frame. */
+/** Full keyboard state emitted by the backend on every valid telemetry frame. */
 export interface TelemetryState {
   connection: ConnectionStatus;
   snapshot: boolean;

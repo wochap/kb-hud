@@ -1,4 +1,4 @@
-//! Mock telemetry source. Every synthetic state is encoded as a protocol-v2
+//! Mock telemetry source. Every synthetic state is encoded as a telemetry
 //! frame, decoded by the production parser, and published through the BLE hub.
 
 use std::sync::{Arc, Mutex};

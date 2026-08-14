@@ -29,7 +29,7 @@ pub enum PeripheralStatus {
     Connected,
 }
 
-/// Full authoritative keyboard state published on every valid v2 frame.
+/// Full authoritative keyboard state published on every valid telemetry frame.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TelemetryState {

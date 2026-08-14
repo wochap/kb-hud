@@ -199,7 +199,7 @@ async fn connection_cycle(hub: &SharedHub, device_mac: &str) -> Outcome {
         Ok(_) => {
             let _ = device.disconnect().await;
             return Outcome::Fatal(
-                "incompatible telemetry: initial read is not a v2 snapshot".to_string(),
+                "incompatible telemetry: initial read is not a snapshot frame".to_string(),
             );
         }
         Err(e) => {

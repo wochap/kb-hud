@@ -6,8 +6,8 @@ A transparent HUD overlay that visualizes the Chocofi split keyboard in real
 time: key presses light up as you type, with modifier-aware labels, layer
 badges, transparent-key resolution, and keyboard status. Telemetry arrives over
 BLE from the keyboard's ZMK firmware
-([`zmk-key-telemetry`](https://github.com/wochap/chocofi-zmk-config/tree/main/modules/zmk-key-telemetry)
-module, [protocol v2](https://github.com/wochap/chocofi-zmk-config/blob/main/docs/telemetry.md)).
+([`zmk-key-telemetry`](https://github.com/wochap/zmk-key-telemetry)
+module and its [telemetry protocol](https://github.com/wochap/zmk-key-telemetry#telemetry-protocol)).
 
 Built with Tauri 2 + React 19. Designed for NixOS + Hyprland.
 
@@ -77,10 +77,10 @@ bunx bun2nix -o bun.nix
 
 ## Telemetry compatibility
 
-kb-hud strictly accepts the authoritative 48-byte protocol-v2 state frame. It
-does not decode the former 20-byte protocol-v1 records, so update kb-hud and
-both keyboard firmware images as one coordinated deployment. A notification
-needs ATT MTU 51 (48-byte value plus the 3-byte ATT notification header). The
+kb-hud strictly accepts the authoritative 48-byte telemetry state frame, so
+update kb-hud and both keyboard firmware images as one coordinated deployment.
+A notification needs ATT MTU 51 (48-byte value plus the 3-byte ATT notification
+header). The
 firmware checks the active connection at runtime; the tested BlueZ/ZMK setup
 negotiates ATT MTU 65 and therefore supports a 62-byte notification value.
 

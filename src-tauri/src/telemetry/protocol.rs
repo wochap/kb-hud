@@ -1,4 +1,4 @@
-//! Protocol-v2 decoder for the zmk-key-telemetry authoritative state frame.
+//! Decoder for the zmk-key-telemetry authoritative state frame.
 //! All multibyte values are unsigned little-endian and use explicit offsets.
 
 pub const FRAME_SIZE: usize = 48;

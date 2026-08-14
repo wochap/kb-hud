@@ -3,7 +3,7 @@
 ## Purpose
 
 BlueZ GATT connection lifecycle for the keyboard's BLE telemetry: device
-auto-detection, protocol-v1 record validation and decoding, full-state
+auto-detection, telemetry-frame validation and decoding, full-state
 publication to the frontend, sequence-gap detection, and automatic
 reconnection after keyboard sleep.
 
@@ -27,7 +27,7 @@ matches the configured telemetry keyboard name (default `Chocochap`).
 - **THEN** the system reports an ambiguity error and requires an explicit MAC address in the profile
 
 ### Requirement: GATT subscription
-The system SHALL connect to the selected device, discover telemetry service `9e7a7d70-df1b-4f76-9d45-8c3f4a6b2100`, subscribe to notifications on characteristic `9e7a7d70-df1b-4f76-9d45-8c3f4a6b2101`, and perform an initial characteristic read to obtain a protocol-v2 snapshot.
+The system SHALL connect to the selected device, discover telemetry service `9e7a7d70-df1b-4f76-9d45-8c3f4a6b2100`, subscribe to notifications on characteristic `9e7a7d70-df1b-4f76-9d45-8c3f4a6b2101`, and perform an initial characteristic read to obtain an authoritative snapshot frame.
 
 #### Scenario: Successful subscription
 - **WHEN** connection and discovery succeed with negotiated ATT MTU at least 51
@@ -79,7 +79,7 @@ The system SHALL compare 32-bit sequence numbers modulo 2^32 for consecutive non
 - **THEN** its sequence becomes the new baseline and no cross-session gap is counted
 
 ### Requirement: Automatic reconnection
-The system SHALL detect keyboard disconnection, retry with backoff, re-subscribe on success, obtain a fresh protocol-v2 snapshot, and continuously publish connected/connecting/disconnected transitions.
+The system SHALL detect keyboard disconnection, retry with backoff, re-subscribe on success, obtain a fresh snapshot frame, and continuously publish connected/connecting/disconnected transitions.
 
 #### Scenario: Keyboard sleeps and wakes
 - **WHEN** the keyboard disconnects due to idle sleep and later reconnects

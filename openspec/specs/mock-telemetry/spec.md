@@ -10,11 +10,11 @@ system bus.
 ## Requirements
 
 ### Requirement: Mock telemetry dev panel
-The settings window SHALL inject synthetic 48-byte protocol-v2 frames through the same encoder, decoder, hub, and publication path as BLE. It SHALL support key press/release, random bursts, layer hold/release, modifier toggles, representative optional state, sequence gaps, firmware drops, and disconnect/reconnect simulation.
+The settings window SHALL inject synthetic 48-byte telemetry frames through the same encoder, decoder, hub, and publication path as BLE. It SHALL support key press/release, random bursts, layer hold/release, modifier toggles, representative optional state, sequence gaps, firmware drops, and disconnect/reconnect simulation.
 
 #### Scenario: Single mock press
 - **WHEN** the user triggers a mock press of position 15
-- **THEN** the overlay highlights position 15 exactly as it would for a real v2 frame
+- **THEN** the overlay highlights position 15 exactly as it would for a real telemetry frame
 
 #### Scenario: Mock modifier hold
 - **WHEN** the user presses a home-row modifier position and enables its matching modifier bit
@@ -33,8 +33,8 @@ The settings window SHALL inject synthetic 48-byte protocol-v2 frames through th
 - **THEN** overlay and tray remain disconnected until mock reconnect
 
 ### Requirement: Mock mode independence from BLE
-The mock panel SHALL function without Bluetooth, D-Bus, or hardware and SHALL NOT require the real telemetry connection to be active. Every mock state change SHALL still traverse protocol-v2 encoding and validation.
+The mock panel SHALL function without Bluetooth, D-Bus, or hardware and SHALL NOT require the real telemetry connection to be active. Every mock state change SHALL still traverse telemetry-frame encoding and validation.
 
 #### Scenario: Sandbox development
 - **WHEN** the app runs without BlueZ access
-- **THEN** all v2 overlay behavior remains exercisable through the mock panel
+- **THEN** all telemetry overlay behavior remains exercisable through the mock panel
