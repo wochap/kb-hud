@@ -54,6 +54,25 @@ Real BLE requires a BlueZ system D-Bus — it only works on the host, not in
 a container sandbox. In the sandbox the app reports the missing bus in the
 connection status and the mock panel covers everything downstream.
 
+## Packaging
+
+The flake exposes the app as a package built from source (frontend via
+[bun2nix](https://github.com/nix-community/bun2nix), backend via
+`buildRustPackage`):
+
+```sh
+nix build        # result/bin/kb-hud
+nix run          # run it directly
+```
+
+Frontend dependencies are pinned in `bun.nix`. After changing dependencies
+in `package.json`, regenerate it alongside the lockfile:
+
+```sh
+bun install
+bunx bun2nix -o bun.nix
+```
+
 ## Telemetry compatibility
 
 kb-hud strictly accepts the authoritative 48-byte protocol-v2 state frame. It
