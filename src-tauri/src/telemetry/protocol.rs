@@ -2,7 +2,7 @@
 //! All multibyte values are unsigned little-endian and use explicit offsets.
 
 pub const FRAME_SIZE: usize = 48;
-pub const PROTOCOL_VERSION: u8 = 2;
+pub const FORMAT_IDENTIFIER: u8 = 2;
 pub const POSITION_COUNT: u8 = 64;
 pub const VALUE_UNKNOWN: u8 = 0xff;
 
@@ -77,7 +77,7 @@ pub struct Frame {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DecodeError {
     InvalidLength { len: usize },
-    UnsupportedVersion { version: u8 },
+    UnsupportedFormatIdentifier { identifier: u8 },
     InvalidDeclaredSize { size: u16 },
     UnknownFlags { flags: u8 },
     InvalidTransport { value: u8 },
@@ -91,8 +91,11 @@ impl std::fmt::Display for DecodeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidLength { len } => write!(f, "frame length {len} != {FRAME_SIZE}"),
-            Self::UnsupportedVersion { version } => {
-                write!(f, "unsupported protocol version 0x{version:02x}")
+            Self::UnsupportedFormatIdentifier { identifier } => {
+                write!(
+                    f,
+                    "unsupported telemetry format identifier 0x{identifier:02x}"
+                )
             }
             Self::InvalidDeclaredSize { size } => {
                 write!(f, "declared frame size {size} != {FRAME_SIZE}")
@@ -127,9 +130,9 @@ pub fn decode(bytes: &[u8]) -> Result<Frame, DecodeError> {
     if bytes.len() != FRAME_SIZE {
         return Err(DecodeError::InvalidLength { len: bytes.len() });
     }
-    if bytes[OFFSET_VERSION] != PROTOCOL_VERSION {
-        return Err(DecodeError::UnsupportedVersion {
-            version: bytes[OFFSET_VERSION],
+    if bytes[OFFSET_VERSION] != FORMAT_IDENTIFIER {
+        return Err(DecodeError::UnsupportedFormatIdentifier {
+            identifier: bytes[OFFSET_VERSION],
         });
     }
     let declared_size = le16(&bytes[OFFSET_FRAME_SIZE..]);
@@ -223,7 +226,7 @@ pub fn pressed_set(bitmap: u64) -> Vec<u8> {
 /// Mirrors the firmware encoder so mock frames traverse the production decoder.
 pub fn encode(frame: &Frame) -> [u8; FRAME_SIZE] {
     let mut out = [0u8; FRAME_SIZE];
-    out[OFFSET_VERSION] = PROTOCOL_VERSION;
+    out[OFFSET_VERSION] = FORMAT_IDENTIFIER;
     out[OFFSET_FLAGS] = if frame.snapshot { FLAG_SNAPSHOT } else { 0 };
     out[OFFSET_FRAME_SIZE..OFFSET_FRAME_SIZE + 2]
         .copy_from_slice(&(FRAME_SIZE as u16).to_le_bytes());
@@ -313,7 +316,7 @@ mod tests {
         bad[OFFSET_VERSION] = 1;
         assert_eq!(
             decode(&bad),
-            Err(DecodeError::UnsupportedVersion { version: 1 })
+            Err(DecodeError::UnsupportedFormatIdentifier { identifier: 1 })
         );
         bad = bytes;
         bad[OFFSET_FRAME_SIZE] = 49;
