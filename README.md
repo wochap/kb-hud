@@ -1,5 +1,7 @@
 # kb-hud
 
+https://github.com/user-attachments/assets/43f146ce-df2c-4957-9b89-e7132d8b0868
+
 A transparent HUD overlay that visualizes the Chocofi split keyboard in real
 time: key presses light up as you type, with modifier-aware labels, layer
 badges, transparent-key resolution, and keyboard status. Telemetry arrives over
