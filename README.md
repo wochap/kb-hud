@@ -3,7 +3,9 @@
 A transparent HUD overlay that visualizes the Chocofi split keyboard in real
 time: key presses light up as you type, with modifier-aware labels, layer
 badges, transparent-key resolution, and keyboard status. Telemetry arrives over
-BLE from the keyboard's ZMK firmware (`zmk-key-telemetry` module, protocol v2).
+BLE from the keyboard's ZMK firmware
+([`zmk-key-telemetry`](https://github.com/wochap/chocofi-zmk-config/tree/main/modules/zmk-key-telemetry)
+module, [protocol v2](https://github.com/wochap/chocofi-zmk-config/blob/main/docs/telemetry.md)).
 
 Built with Tauri 2 + React 19. Designed for NixOS + Hyprland.
 
