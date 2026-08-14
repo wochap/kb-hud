@@ -1,5 +1,6 @@
 import type { KeyGeometry, KeymapGeometry } from "../keymap/parser";
 import { effectiveLayerIndex, resolveKey } from "../keymap/resolve";
+import { DEFAULT_HUD_VISIBILITY, type HudVisibility } from "../profile";
 import {
   MOD_LALT,
   MOD_LCTL,
@@ -133,9 +134,10 @@ export interface OverlayViewProps {
   keymap: KeymapGeometry | null;
   state: TelemetryState;
   error?: string | null;
+  hud?: HudVisibility;
 }
 
-export function OverlayView({ keymap, state, error }: OverlayViewProps) {
+export function OverlayView({ keymap, state, error, hud = DEFAULT_HUD_VISIBILITY }: OverlayViewProps) {
   const intensities = usePressHighlight(state.pressed);
 
   if (!keymap) {
@@ -180,24 +182,27 @@ export function OverlayView({ keymap, state, error }: OverlayViewProps) {
         })}
       </svg>
       <div className="overlay-hud">
-        {state.error && <span className="conn-error">{state.error}</span>}
-        {activeModifiers.map(([, name]) => (
-          <span className="modifier-badge" key={name}>{name}</span>
-        ))}
+        {hud.connection && state.error && (
+          <span className="conn-error">{state.error}</span>
+        )}
+        {hud.modifiers &&
+          activeModifiers.map(([, name]) => (
+            <span className="modifier-badge" key={name}>{name}</span>
+          ))}
         {indicators.map((name) => (
           <span className="indicator-badge" key={name}>{name}</span>
         ))}
-        {state.transport && (
+        {hud.transport && state.transport && (
           <span className="telemetry-status output-status">
             {state.transport === "ble"
               ? `BLE ${state.bleProfile ?? "?"}`
               : "USB"}
           </span>
         )}
-        {state.centralBatteryPct !== undefined && (
+        {hud.battery && state.centralBatteryPct !== undefined && (
           <span className="telemetry-status">{`L ${state.centralBatteryPct}%`}</span>
         )}
-        {state.peripheralBatteryPct !== undefined && (
+        {hud.battery && state.peripheralBatteryPct !== undefined && (
           <span className="telemetry-status">{`R ${state.peripheralBatteryPct}%`}</span>
         )}
         {state.splitStatus && (
@@ -205,12 +210,16 @@ export function OverlayView({ keymap, state, error }: OverlayViewProps) {
             {`split ${state.splitStatus === "connected" ? "up" : "down"}`}
           </span>
         )}
-        {state.gaps > 0 && <span className="gaps">gaps {state.gaps}</span>}
-        {state.firmwareDrops > 0 && (
+        {hud.gaps && state.gaps > 0 && (
+          <span className="gaps">{`gaps ${state.gaps}`}</span>
+        )}
+        {hud.firmwareDrops && state.firmwareDrops > 0 && (
           <span className="gaps">{`fw drops ${state.firmwareDrops}`}</span>
         )}
-        <span className="layer-badge">{layer.name}</span>
-        <span className={`status-dot ${STATUS_CLASS[state.connection]}`} />
+        {hud.layer && <span className="layer-badge">{layer.name}</span>}
+        {hud.connection && (
+          <span className={`status-dot ${STATUS_CLASS[state.connection]}`} />
+        )}
       </div>
     </div>
   );

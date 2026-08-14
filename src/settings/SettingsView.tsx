@@ -2,13 +2,27 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 import { parseKeymapSvg } from "../keymap/parser";
-import type { Profile } from "../profile";
+import {
+  DEFAULT_HUD_VISIBILITY,
+  type HudVisibility,
+  type Profile,
+} from "../profile";
 import "./settings.css";
 
 interface PairedDevice {
   name: string;
   address: string;
 }
+
+const TOP_BAR_TOGGLES: { key: keyof HudVisibility; label: string }[] = [
+  { key: "layer", label: "Layer badge" },
+  { key: "connection", label: "Connection status" },
+  { key: "gaps", label: "Sequence gaps" },
+  { key: "firmwareDrops", label: "Firmware drops" },
+  { key: "battery", label: "Battery levels" },
+  { key: "transport", label: "Transport (BLE/USB)" },
+  { key: "modifiers", label: "Active modifiers" },
+];
 
 type SvgFeedback =
   | { kind: "ok"; layers: number; positions: number }
@@ -331,6 +345,44 @@ function ScaleSection({
   );
 }
 
+function TopBarSection({
+  profile,
+  reload,
+}: {
+  profile: Profile;
+  reload: () => void;
+}) {
+  const hud = profile.hud ?? DEFAULT_HUD_VISIBILITY;
+
+  const toggle = async (key: keyof HudVisibility) => {
+    await invoke("update_profile", {
+      name: profile.name,
+      patch: { hud: { ...hud, [key]: !hud[key] } },
+    });
+    reload();
+  };
+
+  return (
+    <section>
+      <h2>Top bar</h2>
+      <ul className="topbar-list">
+        {TOP_BAR_TOGGLES.map(({ key, label }) => (
+          <li key={key}>
+            <label>
+              <input
+                type="checkbox"
+                checked={hud[key]}
+                onChange={() => toggle(key)}
+              />
+              {label}
+            </label>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function DevPanel() {
   const [position, setPosition] = useState(15);
   const [burst, setBurst] = useState(8);
@@ -465,6 +517,7 @@ export function SettingsView() {
           <KeymapSection profile={active} reload={reload} />
           <DeviceSection profile={active} reload={reload} />
           <ScaleSection profile={active} reload={reload} />
+          <TopBarSection profile={active} reload={reload} />
         </>
       )}
       <DevPanel />

@@ -6,6 +6,43 @@ use serde::{Deserialize, Serialize};
 pub const AUTO_DEVICE: &str = "auto";
 const PROFILES_FILE: &str = "profiles.json";
 
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HudVisibility {
+    #[serde(default = "default_true")]
+    pub layer: bool,
+    #[serde(default = "default_true")]
+    pub connection: bool,
+    #[serde(default = "default_true")]
+    pub gaps: bool,
+    #[serde(default = "default_true")]
+    pub firmware_drops: bool,
+    #[serde(default = "default_true")]
+    pub battery: bool,
+    #[serde(default = "default_true")]
+    pub transport: bool,
+    #[serde(default = "default_true")]
+    pub modifiers: bool,
+}
+
+impl Default for HudVisibility {
+    fn default() -> Self {
+        Self {
+            layer: true,
+            connection: true,
+            gaps: true,
+            firmware_drops: true,
+            battery: true,
+            transport: true,
+            modifiers: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Profile {
@@ -14,6 +51,8 @@ pub struct Profile {
     /// Bluetooth MAC address, or `auto` to auto-detect the paired keyboard.
     pub device_mac: String,
     pub scale: f64,
+    #[serde(default)]
+    pub hud: HudVisibility,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -32,6 +71,7 @@ impl Config {
                 svg_path: String::new(),
                 device_mac: AUTO_DEVICE.to_string(),
                 scale: 1.0,
+                hud: HudVisibility::default(),
             }],
         }
     }
@@ -52,6 +92,7 @@ pub struct ProfilePatch {
     pub svg_path: Option<String>,
     pub device_mac: Option<String>,
     pub scale: Option<f64>,
+    pub hud: Option<HudVisibility>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,7 +114,10 @@ impl std::fmt::Display for ConfigError {
             ConfigError::NotFound(name) => write!(f, "profile '{name}' not found"),
             ConfigError::EmptyName => write!(f, "profile name must not be empty"),
             ConfigError::DeleteActiveProfile => {
-                write!(f, "cannot delete the active profile; activate another first")
+                write!(
+                    f,
+                    "cannot delete the active profile; activate another first"
+                )
             }
         }
     }
@@ -138,6 +182,7 @@ impl ConfigStore {
             svg_path: String::new(),
             device_mac: AUTO_DEVICE.to_string(),
             scale: 1.0,
+            hud: HudVisibility::default(),
         };
         self.config.profiles.push(profile.clone());
         self.save()?;
@@ -180,7 +225,11 @@ impl ConfigStore {
         self.save()
     }
 
-    pub fn update_profile(&mut self, name: &str, patch: ProfilePatch) -> Result<Profile, ConfigError> {
+    pub fn update_profile(
+        &mut self,
+        name: &str,
+        patch: ProfilePatch,
+    ) -> Result<Profile, ConfigError> {
         if let Some(new_name) = &patch.name {
             Self::validate_name(new_name)?;
             if new_name != name && self.config.find_mut(new_name).is_some() {
@@ -203,6 +252,9 @@ impl ConfigStore {
         }
         if let Some(scale) = patch.scale {
             profile.scale = scale;
+        }
+        if let Some(hud) = patch.hud {
+            profile.hud = hud;
         }
         let updated = profile.clone();
         if was_active {
@@ -319,5 +371,55 @@ mod tests {
         assert!(raw.contains("\"activeProfile\""));
         assert!(raw.contains("\"svgPath\""));
         assert!(raw.contains("\"deviceMac\""));
+    }
+
+    #[test]
+    fn profile_without_hud_deserializes_all_enabled() {
+        let raw = r#"{
+            "activeProfile": "default",
+            "profiles": [{
+                "name": "default",
+                "svgPath": "/tmp/k.svg",
+                "deviceMac": "auto",
+                "scale": 1.0
+            }]
+        }"#;
+        let config: Config = serde_json::from_str(raw).unwrap();
+        let hud = &config.profiles[0].hud;
+        assert!(hud.layer);
+        assert!(hud.connection);
+        assert!(hud.gaps);
+        assert!(hud.firmware_drops);
+        assert!(hud.battery);
+        assert!(hud.transport);
+        assert!(hud.modifiers);
+    }
+
+    #[test]
+    fn patch_with_partial_hud_defaults_missing_fields_to_true() {
+        let dir = temp_config_dir();
+        let mut store = ConfigStore::load_or_create(&dir).unwrap();
+        let hud: HudVisibility = serde_json::from_str(r#"{"battery": false}"#).unwrap();
+        assert!(!hud.battery);
+        assert!(hud.layer);
+        assert!(hud.connection);
+        assert!(hud.gaps);
+        assert!(hud.firmware_drops);
+        assert!(hud.transport);
+        assert!(hud.modifiers);
+        let updated = store
+            .update_profile(
+                "default",
+                ProfilePatch {
+                    hud: Some(hud),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert!(!updated.hud.battery);
+        assert!(updated.hud.layer);
+        let reloaded = ConfigStore::load_or_create(&dir).unwrap();
+        assert!(!reloaded.active_profile().unwrap().hud.battery);
+        let _ = fs::remove_dir_all(&dir);
     }
 }

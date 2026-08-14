@@ -10,12 +10,13 @@ use tauri::{
 use crate::telemetry::state::TELEMETRY_STATE_EVENT;
 
 pub fn setup_tray(app: &AppHandle) -> Result<(), String> {
-    let open_settings = MenuItem::with_id(app, "open_settings", "Open settings", true, None::<&str>)
-        .map_err(|e| e.to_string())?;
+    let open_settings =
+        MenuItem::with_id(app, "open_settings", "Open settings", true, None::<&str>)
+            .map_err(|e| e.to_string())?;
     let status = MenuItem::with_id(app, "status", "disconnected", false, None::<&str>)
         .map_err(|e| e.to_string())?;
-    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)
-        .map_err(|e| e.to_string())?;
+    let quit =
+        MenuItem::with_id(app, "quit", "Quit", true, None::<&str>).map_err(|e| e.to_string())?;
 
     let menu = MenuBuilder::new(app)
         .items(&[&open_settings, &status, &quit])

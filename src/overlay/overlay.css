@@ -86,6 +86,22 @@
   font-size: 12px;
 }
 
+/* Uniform pill metrics: every top-bar pill is a 20px-tall box whose content
+   is vertically centered, so all pills share one midline in the flex row. */
+.overlay-hud > span:not(.status-dot) {
+  box-sizing: border-box;
+  height: 20px;
+}
+
+.overlay-hud > span:not(.conn-error):not(.status-dot) {
+  display: inline-flex;
+  align-items: center;
+}
+
+.overlay-hud > .conn-error {
+  line-height: 20px;
+}
+
 .layer-badge,
 .telemetry-status,
 .modifier-badge,
@@ -93,7 +109,7 @@
   color: rgba(235, 240, 250, 0.9);
   background: rgba(17, 19, 27, 0.68);
   border-radius: 8px;
-  padding: 2px 8px;
+  padding: 0 8px;
 }
 
 .modifier-badge {
@@ -113,14 +129,14 @@
   color: rgba(255, 200, 120, 0.9);
   background: rgba(17, 19, 27, 0.68);
   border-radius: 8px;
-  padding: 2px 8px;
+  padding: 0 8px;
 }
 
 .conn-error {
   color: rgba(255, 160, 150, 0.95);
   background: rgba(17, 19, 27, 0.68);
   border-radius: 8px;
-  padding: 2px 8px;
+  padding: 0 8px;
   max-width: 420px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -131,7 +147,7 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  display: inline-block;
+  flex: none;
 }
 
 .status-connected {
