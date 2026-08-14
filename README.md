@@ -72,23 +72,48 @@ connection errors instead of being guessed or partially applied.
 ## Hyprland integration
 
 kb-hud does not talk to the compositor. Positioning, focus prevention, and
-show/hide are Hyprland windowrules on the overlay's stable window class
-`kb-hud`. Add to your Hyprland config:
+show/hide are configured in Hyprland using the overlay's stable window class
+and title. Add to your Hyprland Lua config:
 
-```ini
-# never steal focus, float, place bottom-center
-windowrulev2 = nofocus, class:^(kb-hud)$
-windowrulev2 = float, class:^(kb-hud)$
-windowrulev2 = move 50%-w/2 100%-h-48, class:^(kb-hud)$
+```lua
+hl.window_rule({
+  match = { class = "^(kb-hud)$", title = ".*overlay$" },
+  float = true,
+  no_focus = true,
+  no_blur = true,
+  decorate = false,
+  pin = true,
+  move = { "(monitor_w - 600) / 2", "monitor_h - window_h" },
+  size = { "600", "window_h" },
+  no_initial_focus = true,
+})
 
-# live on a special workspace; toggle with a keybinding
-windowrulev2 = workspace special:kb-hud silent, class:^(kb-hud)$
-bind = SUPER, K, togglespecialworkspace, kb-hud
+hl.bind(mod .. " + k", function()
+  local window
+  for _, candidate in ipairs(hl.get_windows({ class = "kb-hud" })) do
+    if candidate.title == "kb-hud overlay" then
+      window = candidate
+      break
+    end
+  end
+  if not window then
+    return
+  end
+
+  if window.workspace and window.workspace.name == "special:kb-hud-minimized" then
+    hl.dispatch(hl.dsp.window.move({ workspace = hl.get_active_workspace(), window = window, follow = false }))
+    hl.dispatch(hl.dsp.window.pin({ action = "set", window = window }))
+    hl.dispatch(hl.dsp.window.alter_zorder({ mode = "top", window = window }))
+  else
+    hl.dispatch(hl.dsp.window.pin({ action = "unset", window = window }))
+    hl.dispatch(hl.dsp.window.move({ workspace = "special:kb-hud-minimized", window = window, follow = false }))
+  end
+end)
 ```
 
-Adjust the binding and the bottom margin (`-48`) to taste. With the special
-workspace rule active, `SUPER+K` (or your binding) shows and hides the
-overlay; the app never controls its own visibility.
+Adjust the binding and the `600`-pixel width to taste. The binding moves the
+overlay between the active workspace and `special:kb-hud-minimized`; the app
+never controls its own visibility.
 
 The tray icon needs a StatusNotifier host (e.g. QuickShell's SNI module or
 any panel hosting SNI). Without one the app remains fully usable through
