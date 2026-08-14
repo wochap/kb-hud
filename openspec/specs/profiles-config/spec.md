@@ -10,12 +10,20 @@ and the settings UI for managing profiles, SVG paths, and device selection.
 
 ### Requirement: Profile data model
 The system SHALL support profiles, each containing: a name, a keymap SVG
-path, a device selection (either a Bluetooth MAC address or `auto`), and a
-render scale factor. Exactly one profile SHALL be active at a time.
+path, a device selection (either a Bluetooth MAC address or `auto`), a
+render scale factor, and an HUD visibility block with one boolean per top
+bar pill category (layer, connection, gaps, firmware drops, battery,
+transport, modifiers). Exactly one profile SHALL be active at a time.
+Profiles persisted without an HUD block SHALL behave as if every toggle is
+enabled.
 
 #### Scenario: Profile fields
 - **WHEN** a profile is created
-- **THEN** it stores name, svgPath, deviceMac or `auto`, and scale
+- **THEN** it stores name, svgPath, deviceMac or `auto`, scale, and HUD visibility toggles
+
+#### Scenario: Legacy profile loads
+- **WHEN** a persisted profile has no HUD visibility block
+- **THEN** it loads with all pill toggles enabled
 
 ### Requirement: Configuration persistence
 The system SHALL persist profiles and the active profile selection as JSON
@@ -61,3 +69,17 @@ backend to assist selection.
 #### Scenario: Device list shown
 - **WHEN** the user opens device selection
 - **THEN** paired BlueZ devices are listed with names and MAC addresses
+
+### Requirement: HUD visibility settings UI
+The settings window SHALL provide a section listing each top bar pill
+category with a toggle, persisting changes to the active profile via the
+existing profile-update mechanism. Changes SHALL apply to the running
+overlay without a restart.
+
+#### Scenario: Toggle a pill off
+- **WHEN** the user disables the battery toggle in settings
+- **THEN** the profile's HUD block is updated and the overlay stops showing battery pills immediately
+
+#### Scenario: Toggle a pill on
+- **WHEN** the user re-enables a previously disabled pill toggle
+- **THEN** the corresponding pills reappear in the overlay once their data is valid

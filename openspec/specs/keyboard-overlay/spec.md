@@ -79,7 +79,7 @@ total press visibility has elapsed, and SHALL fade the highlight out over
 - **THEN** the highlight persists for the entire hold and fades out ~150 ms after release
 
 ### Requirement: Connection status indicator
-The system SHALL display connection status and compact valid keyboard status including active modifiers, endpoint/profile, batteries, split connection, active lock indicators, sequence gaps, and firmware drop count. Optional items SHALL be hidden when their validity bits are clear.
+The system SHALL display connection status and compact valid keyboard status including active modifiers, endpoint/profile, batteries, split connection, active lock indicators, sequence gaps, and firmware drop count. Optional items SHALL be hidden when their validity bits are clear. Each pill category (layer badge, connection dot and error message, gaps, firmware drops, battery levels, transport, active modifiers) SHALL additionally be hidden when its HUD visibility toggle is off. All displayed pills SHALL be vertically centered on a common midline within the top bar.
 
 #### Scenario: Keyboard disconnects
 - **WHEN** backend state is disconnected
@@ -92,6 +92,18 @@ The system SHALL display connection status and compact valid keyboard status inc
 #### Scenario: Active modifiers
 - **WHEN** telemetry reports multiple modifier bits
 - **THEN** the overlay displays each active left/right modifier distinctly
+
+#### Scenario: Pill toggle off
+- **WHEN** the gaps HUD toggle is off and telemetry reports gaps > 0
+- **THEN** the overlay renders no gaps pill
+
+#### Scenario: Connection toggle off
+- **WHEN** the connection HUD toggle is off
+- **THEN** neither the status dot nor any connection error message is rendered
+
+#### Scenario: Vertical centering
+- **WHEN** the top bar renders any combination of pills
+- **THEN** every pill's visual center lies on the same horizontal midline
 
 ### Requirement: US Shift label preview
 The overlay SHALL apply an isolated US-keyboard Shift mapping to printable tap labels whenever LSHIFT or RSHIFT is active. It SHALL transform ASCII letters, digits, and standard punctuation while leaving non-printable, behavior, media, and already-shifted-symbol labels unchanged.
