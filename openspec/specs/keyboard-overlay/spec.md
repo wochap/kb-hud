@@ -26,13 +26,15 @@ rendering partial results.
 - **THEN** the settings UI displays a parse error identifying the problem and the overlay keeps its last valid keymap
 
 ### Requirement: Keycap rendering
-The system SHALL render its own keycaps from parsed geometry (not the SVG's
-embedded styling) in a dark translucent visual style, displaying each key's
-tap label and hold sub-label when present.
+The system SHALL render its own keycaps from parsed geometry in a dark translucent style, displaying each resolved tap label and hold sub-label. When a pressed key's normalized hold label matches an active effective modifier, its hold role SHALL receive distinct resolved-modifier styling.
 
 #### Scenario: Layer rendered
 - **WHEN** a keymap is loaded and a layer is active
-- **THEN** all positions of that layer render as keycaps with their labels at the geometry-derived positions
+- **THEN** all positions render as keycaps with resolved labels at geometry-derived positions
+
+#### Scenario: Home-row hold resolves
+- **WHEN** a pressed home-row key has hold label `LSHIFT` and telemetry reports LSHIFT active
+- **THEN** that keycap visually promotes its hold role rather than appearing only as a physically held tap key
 
 ### Requirement: Effective layer selection
 The system SHALL determine the effective layer as the highest set bit of
@@ -77,9 +79,35 @@ total press visibility has elapsed, and SHALL fade the highlight out over
 - **THEN** the highlight persists for the entire hold and fades out ~150 ms after release
 
 ### Requirement: Connection status indicator
-The system SHALL display a connection status indicator on the overlay
-reflecting connected, reconnecting/connecting, and disconnected states.
+The system SHALL display connection status and compact valid keyboard status including active modifiers, endpoint/profile, batteries, split connection, active lock indicators, sequence gaps, and firmware drop count. Optional items SHALL be hidden when their validity bits are clear.
 
 #### Scenario: Keyboard disconnects
-- **WHEN** the backend publishes a disconnected state
-- **THEN** the overlay indicator shows the disconnected state until reconnection
+- **WHEN** backend state is disconnected
+- **THEN** the overlay shows disconnected until reconnection
+
+#### Scenario: Optional battery unavailable
+- **WHEN** peripheral-battery validity is clear
+- **THEN** no right-battery percentage is displayed
+
+#### Scenario: Active modifiers
+- **WHEN** telemetry reports multiple modifier bits
+- **THEN** the overlay displays each active left/right modifier distinctly
+
+### Requirement: US Shift label preview
+The overlay SHALL apply an isolated US-keyboard Shift mapping to printable tap labels whenever LSHIFT or RSHIFT is active. It SHALL transform ASCII letters, digits, and standard punctuation while leaving non-printable, behavior, media, and already-shifted-symbol labels unchanged.
+
+#### Scenario: Shift slash
+- **WHEN** either Shift modifier is active and a resolved key tap label is `/`
+- **THEN** that keycap displays `?`
+
+#### Scenario: Shift letter
+- **WHEN** Shift is active and a resolved tap label is `a`
+- **THEN** that keycap displays `A`
+
+#### Scenario: Non-printable label
+- **WHEN** Shift is active and a key label is `ENTER`, `F1`, or `VOL UP`
+- **THEN** its label remains unchanged
+
+#### Scenario: Shift released
+- **WHEN** neither Shift modifier is active
+- **THEN** each keycap displays its ordinary resolved tap label

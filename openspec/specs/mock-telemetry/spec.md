@@ -10,33 +10,31 @@ system bus.
 ## Requirements
 
 ### Requirement: Mock telemetry dev panel
-The settings window SHALL include a development panel that injects
-synthetic telemetry through the same state publication path as BLE records,
-supporting: a single key press/release at a chosen position, a burst of
-random presses, a layer hold and release, a sequence-gap injection, and a
-disconnect/reconnect simulation.
+The settings window SHALL inject synthetic 48-byte protocol-v2 frames through the same encoder, decoder, hub, and publication path as BLE. It SHALL support key press/release, random bursts, layer hold/release, modifier toggles, representative optional state, sequence gaps, firmware drops, and disconnect/reconnect simulation.
 
 #### Scenario: Single mock press
-- **WHEN** the user triggers a mock press of position 15 from the dev panel
-- **THEN** the overlay highlights position 15 exactly as it would for a real BLE record
+- **WHEN** the user triggers a mock press of position 15
+- **THEN** the overlay highlights position 15 exactly as it would for a real v2 frame
 
-#### Scenario: Mock layer hold
-- **WHEN** the user holds a mock layer from the dev panel
-- **THEN** the overlay switches to that layer's effective rendering with resolved trans keys
+#### Scenario: Mock modifier hold
+- **WHEN** the user presses a home-row modifier position and enables its matching modifier bit
+- **THEN** the overlay shows the active modifier, resolved-hold styling, and shifted labels through the production path
+
+#### Scenario: Mock optional state
+- **WHEN** the user configures valid endpoint, battery, indicator, or split values
+- **THEN** the overlay presents them exactly as equivalent BLE state
 
 #### Scenario: Mock sequence gap
-- **WHEN** the user injects a sequence gap from the dev panel
-- **THEN** the gap counter increases and the behavior matches a real BLE gap
+- **WHEN** the user injects a sequence gap
+- **THEN** the gap counter increases and behavior matches a real BLE gap
 
 #### Scenario: Mock disconnect
 - **WHEN** the user triggers a disconnect simulation
-- **THEN** the overlay and tray show the disconnected state until a reconnect simulation is triggered
+- **THEN** overlay and tray remain disconnected until mock reconnect
 
 ### Requirement: Mock mode independence from BLE
-The mock panel SHALL function without any Bluetooth stack, D-Bus system
-bus, or hardware present, and SHALL NOT require the real telemetry
-connection to be active.
+The mock panel SHALL function without Bluetooth, D-Bus, or hardware and SHALL NOT require the real telemetry connection to be active. Every mock state change SHALL still traverse protocol-v2 encoding and validation.
 
 #### Scenario: Sandbox development
-- **WHEN** the app runs in an environment without BlueZ access
-- **THEN** all overlay behavior remains fully exercisable through the mock panel
+- **WHEN** the app runs without BlueZ access
+- **THEN** all v2 overlay behavior remains exercisable through the mock panel
