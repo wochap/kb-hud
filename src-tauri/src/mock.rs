@@ -1,32 +1,68 @@
-//! Mock telemetry source. Synthesizes protocol-v1 records and publishes
-//! them through the exact same encode → decode → hub path as BLE, so every
-//! downstream behavior is exercisable without a Bluetooth stack.
+//! Mock telemetry source. Every synthetic state is encoded as a protocol-v2
+//! frame, decoded by the production parser, and published through the BLE hub.
 
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::telemetry::hub::SharedHub;
-use crate::telemetry::protocol::{self, Record, RecordType, POSITION_COUNT};
+use crate::telemetry::protocol::{
+    self, Frame, SplitStatus, Transport, FIELD_CENTRAL_BATTERY, FIELD_DEFAULT_LAYER,
+    FIELD_ENDPOINT, FIELD_HID_INDICATORS, FIELD_LAYERS, FIELD_MODIFIERS, FIELD_PERIPHERAL_BATTERY,
+    FIELD_POSITIONS, FIELD_SPLIT_STATUS, POSITION_COUNT,
+};
 use crate::telemetry::state::ConnectionStatus;
 
-#[derive(Debug, Default)]
+const BASE_VALID_FIELDS: u32 =
+    FIELD_POSITIONS | FIELD_LAYERS | FIELD_MODIFIERS | FIELD_DEFAULT_LAYER | FIELD_ENDPOINT;
+
+#[derive(Debug)]
 pub struct MockKeyboard {
     pressed: u64,
     active_layers: u32,
-    sequence: u16,
-    pending_skip: u16,
+    modifiers: u8,
+    sequence: u32,
+    pending_skip: u32,
     rng_state: u64,
+    valid_fields: u32,
+    hid_indicators: u8,
+    transport: Transport,
+    ble_profile: u8,
+    central_battery_pct: u8,
+    peripheral_battery_pct: u8,
+    split_status: SplitStatus,
+    dropped_frames: u32,
+}
+
+impl Default for MockKeyboard {
+    fn default() -> Self {
+        Self {
+            pressed: 0,
+            active_layers: 1,
+            modifiers: 0,
+            sequence: 0,
+            pending_skip: 0,
+            rng_state: 0,
+            valid_fields: BASE_VALID_FIELDS,
+            hid_indicators: 0,
+            transport: Transport::Ble,
+            ble_profile: 0,
+            central_battery_pct: 0xff,
+            peripheral_battery_pct: 0xff,
+            split_status: SplitStatus::Unknown,
+            dropped_frames: 0,
+        }
+    }
 }
 
 impl MockKeyboard {
-    fn now_ms() -> u32 {
+    fn now_ms() -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_millis() as u32)
+            .map(|duration| duration.as_millis() as u64)
             .unwrap_or(0)
     }
 
-    fn next_sequence(&mut self) -> u16 {
+    fn next_sequence(&mut self) -> u32 {
         self.sequence = self.sequence.wrapping_add(1 + self.pending_skip);
         self.pending_skip = 0;
         self.sequence
@@ -34,49 +70,39 @@ impl MockKeyboard {
 
     fn random_position(&mut self) -> u8 {
         if self.rng_state == 0 {
-            self.rng_state = Self::now_ms() as u64 | 0x9E37_79B9_7F4A_7C15;
+            self.rng_state = Self::now_ms() | 0x9E37_79B9_7F4A_7C15;
         }
-        let mut x = self.rng_state;
-        x ^= x << 13;
-        x ^= x >> 7;
-        x ^= x << 17;
-        self.rng_state = x;
-        (x % POSITION_COUNT as u64) as u8
+        let mut value = self.rng_state;
+        value ^= value << 13;
+        value ^= value >> 7;
+        value ^= value << 17;
+        self.rng_state = value;
+        (value % POSITION_COUNT as u64) as u8
     }
 
-    fn snapshot_record(&mut self) -> Record {
-        Record {
-            record_type: RecordType::Snapshot,
-            pressed: false,
-            position: None,
-            sequence: self.next_sequence(),
+    fn frame(&mut self, snapshot: bool, changed_fields: u32) -> Frame {
+        let sequence = if snapshot {
+            self.sequence
+        } else {
+            self.next_sequence()
+        };
+        Frame {
+            snapshot,
+            sequence,
             timestamp_ms: Self::now_ms(),
-            active_layers: self.active_layers,
             pressed_positions: self.pressed,
-        }
-    }
-
-    fn key_record(&mut self, position: u8, pressed: bool) -> Record {
-        Record {
-            record_type: RecordType::Key,
-            pressed,
-            position: Some(position),
-            sequence: self.next_sequence(),
-            timestamp_ms: Self::now_ms(),
             active_layers: self.active_layers,
-            pressed_positions: self.pressed,
-        }
-    }
-
-    fn layers_record(&mut self) -> Record {
-        Record {
-            record_type: RecordType::Layers,
-            pressed: false,
-            position: None,
-            sequence: self.next_sequence(),
-            timestamp_ms: Self::now_ms(),
-            active_layers: self.active_layers,
-            pressed_positions: self.pressed,
+            changed_fields: if snapshot { 0 } else { changed_fields },
+            valid_fields: self.valid_fields,
+            modifiers: self.modifiers,
+            hid_indicators: self.hid_indicators,
+            default_layer: 0,
+            transport: self.transport,
+            ble_profile: self.ble_profile,
+            central_battery_pct: self.central_battery_pct,
+            peripheral_battery_pct: self.peripheral_battery_pct,
+            split_status: self.split_status,
+            dropped_frames: self.dropped_frames,
         }
     }
 }
@@ -89,80 +115,145 @@ pub struct MockSource {
 
 impl MockSource {
     pub fn new(hub: SharedHub) -> Self {
-        // default layer active, like a freshly booted keyboard
-        let keyboard = MockKeyboard {
-            active_layers: 1,
-            ..Default::default()
-        };
         Self {
             hub,
-            keyboard: Arc::new(Mutex::new(keyboard)),
+            keyboard: Arc::new(Mutex::new(MockKeyboard::default())),
         }
     }
 
-    /// Encodes, then decodes, then publishes — the identical path BLE
-    /// records traverse.
-    fn publish(&self, record: Record) {
-        let bytes = protocol::encode(&record);
+    fn publish(&self, frame: Frame) {
+        let bytes = protocol::encode(&frame);
         if let Ok(decoded) = protocol::decode(&bytes) {
-            self.hub.lock().unwrap().publish_record(&decoded);
+            self.hub.lock().unwrap().publish_frame(&decoded);
         }
     }
 
     pub fn press(&self, position: u8) -> Result<(), String> {
         check_position(position)?;
-        let mut kb = self.keyboard.lock().unwrap();
-        kb.pressed |= 1u64 << position;
-        self.publish(kb.key_record(position, true));
+        let frame = {
+            let mut keyboard = self.keyboard.lock().unwrap();
+            keyboard.pressed |= 1u64 << position;
+            keyboard.frame(false, FIELD_POSITIONS)
+        };
+        self.publish(frame);
         Ok(())
     }
 
     pub fn release(&self, position: u8) -> Result<(), String> {
         check_position(position)?;
-        let mut kb = self.keyboard.lock().unwrap();
-        kb.pressed &= !(1u64 << position);
-        self.publish(kb.key_record(position, false));
+        let frame = {
+            let mut keyboard = self.keyboard.lock().unwrap();
+            keyboard.pressed &= !(1u64 << position);
+            keyboard.frame(false, FIELD_POSITIONS)
+        };
+        self.publish(frame);
         Ok(())
     }
 
     pub fn burst(&self, count: u32) {
         for _ in 0..count {
             let position = {
-                let mut kb = self.keyboard.lock().unwrap();
-                let position = kb.random_position();
-                kb.pressed |= 1u64 << position;
-                self.publish(kb.key_record(position, true));
+                let mut keyboard = self.keyboard.lock().unwrap();
+                let position = keyboard.random_position();
+                keyboard.pressed |= 1u64 << position;
+                let frame = keyboard.frame(false, FIELD_POSITIONS);
+                drop(keyboard);
+                self.publish(frame);
                 position
             };
-            let mut kb = self.keyboard.lock().unwrap();
-            kb.pressed &= !(1u64 << position);
-            self.publish(kb.key_record(position, false));
+            let frame = {
+                let mut keyboard = self.keyboard.lock().unwrap();
+                keyboard.pressed &= !(1u64 << position);
+                keyboard.frame(false, FIELD_POSITIONS)
+            };
+            self.publish(frame);
         }
     }
 
     pub fn hold_layer(&self, layer: u8) -> Result<(), String> {
         check_layer(layer)?;
-        let mut kb = self.keyboard.lock().unwrap();
-        kb.active_layers |= 1u32 << layer;
-        self.publish(kb.layers_record());
+        let frame = {
+            let mut keyboard = self.keyboard.lock().unwrap();
+            keyboard.active_layers |= 1u32 << layer;
+            keyboard.frame(false, FIELD_LAYERS)
+        };
+        self.publish(frame);
         Ok(())
     }
 
     pub fn release_layer(&self, layer: u8) -> Result<(), String> {
         check_layer(layer)?;
-        let mut kb = self.keyboard.lock().unwrap();
-        // never release the base layer bit entirely — keep at least bit 0
-        kb.active_layers &= !(1u32 << layer);
-        if kb.active_layers == 0 {
-            kb.active_layers = 1;
-        }
-        self.publish(kb.layers_record());
+        let frame = {
+            let mut keyboard = self.keyboard.lock().unwrap();
+            keyboard.active_layers &= !(1u32 << layer);
+            if keyboard.active_layers == 0 {
+                keyboard.active_layers = 1;
+            }
+            keyboard.frame(false, FIELD_LAYERS)
+        };
+        self.publish(frame);
         Ok(())
     }
 
-    /// The next record skips sequence numbers, exercising gap detection.
+    pub fn set_modifier(&self, bit: u8, active: bool) -> Result<(), String> {
+        if bit >= 8 {
+            return Err(format!("modifier bit {bit} out of range (0..8)"));
+        }
+        let frame = {
+            let mut keyboard = self.keyboard.lock().unwrap();
+            if active {
+                keyboard.modifiers |= 1 << bit;
+            } else {
+                keyboard.modifiers &= !(1 << bit);
+            }
+            keyboard.frame(false, FIELD_MODIFIERS)
+        };
+        self.publish(frame);
+        Ok(())
+    }
+
+    pub fn set_demo_status(&self, enabled: bool) {
+        let frame = {
+            let mut keyboard = self.keyboard.lock().unwrap();
+            let fields = FIELD_HID_INDICATORS
+                | FIELD_ENDPOINT
+                | FIELD_CENTRAL_BATTERY
+                | FIELD_PERIPHERAL_BATTERY
+                | FIELD_SPLIT_STATUS;
+            if enabled {
+                keyboard.valid_fields |= fields;
+                keyboard.hid_indicators = 0x02;
+                keyboard.transport = Transport::Ble;
+                keyboard.ble_profile = 2;
+                keyboard.central_battery_pct = 91;
+                keyboard.peripheral_battery_pct = 84;
+                keyboard.split_status = SplitStatus::Connected;
+            } else {
+                keyboard.valid_fields &= !(FIELD_HID_INDICATORS
+                    | FIELD_CENTRAL_BATTERY
+                    | FIELD_PERIPHERAL_BATTERY
+                    | FIELD_SPLIT_STATUS);
+                keyboard.hid_indicators = 0;
+                keyboard.central_battery_pct = 0xff;
+                keyboard.peripheral_battery_pct = 0xff;
+                keyboard.split_status = SplitStatus::Unknown;
+            }
+            keyboard.frame(false, fields)
+        };
+        self.publish(frame);
+    }
+
     pub fn inject_gap(&self) {
         self.keyboard.lock().unwrap().pending_skip += 2;
+    }
+
+    pub fn inject_firmware_drop(&self) {
+        let frame = {
+            let mut keyboard = self.keyboard.lock().unwrap();
+            keyboard.dropped_frames = keyboard.dropped_frames.wrapping_add(1);
+            keyboard.frame(false, 0)
+        };
+        self.publish(frame);
     }
 
     pub fn disconnect(&self) {
@@ -173,11 +264,12 @@ impl MockSource {
     }
 
     pub fn reconnect(&self) {
-        let mut hub = self.hub.lock().unwrap();
-        hub.reset_sequence_tracking();
-        hub.publish_connection(ConnectionStatus::Connected, None);
-        let snapshot = self.keyboard.lock().unwrap().snapshot_record();
-        drop(hub);
+        let snapshot = self.keyboard.lock().unwrap().frame(true, 0);
+        {
+            let mut hub = self.hub.lock().unwrap();
+            hub.reset_sequence_tracking();
+            hub.publish_connection(ConnectionStatus::Connected, None);
+        }
         self.publish(snapshot);
     }
 }

@@ -335,6 +335,7 @@ function DevPanel() {
   const [position, setPosition] = useState(15);
   const [burst, setBurst] = useState(8);
   const [layer, setLayer] = useState(3);
+  const [modifier, setModifier] = useState(1);
 
   const cmd = (name: string, args?: Record<string, unknown>) =>
     invoke(name, args).catch(() => {});
@@ -348,7 +349,7 @@ function DevPanel() {
           <input
             type="number"
             min={0}
-            max={47}
+            max={63}
             value={position}
             onChange={(e) => setPosition(Number(e.target.value))}
           />
@@ -389,6 +390,53 @@ function DevPanel() {
         </button>
         <button onClick={() => cmd("mock_release_layer", { layer })}>
           release layer
+        </button>
+      </div>
+      <div className="row">
+        <label>
+          modifier
+          <select
+            value={modifier}
+            onChange={(e) => setModifier(Number(e.target.value))}
+          >
+            {[
+              "LCTRL",
+              "LSHIFT",
+              "LALT",
+              "LGUI",
+              "RCTRL",
+              "RSHIFT",
+              "RALT",
+              "RGUI",
+            ].map((name, bit) => (
+              <option value={bit} key={name}>{name}</option>
+            ))}
+          </select>
+        </label>
+        <button
+          onClick={() =>
+            cmd("mock_set_modifier", { bit: modifier, active: true })
+          }
+        >
+          modifier down
+        </button>
+        <button
+          onClick={() =>
+            cmd("mock_set_modifier", { bit: modifier, active: false })
+          }
+        >
+          modifier up
+        </button>
+      </div>
+      <div className="row">
+        <button onClick={() => cmd("mock_set_demo_status", { enabled: true })}>
+          demo status on
+        </button>
+        <button onClick={() => cmd("mock_set_demo_status", { enabled: false })}>
+          demo status off
+        </button>
+        <button onClick={() => cmd("mock_inject_firmware_drop")}>
+          inject fw drop
         </button>
       </div>
       <div className="row">

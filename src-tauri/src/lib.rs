@@ -8,8 +8,8 @@ use std::sync::Mutex;
 
 use config::{ConfigStore, Profile, ProfilePatch};
 use mock::MockSource;
-use telemetry::hub::{SharedHub, TelemetryHub};
 use tauri::{AppHandle, Emitter, Manager, State};
+use telemetry::hub::{SharedHub, TelemetryHub};
 
 use crate::ble::{BleController, PairedDevice};
 
@@ -138,8 +138,25 @@ fn mock_release_layer(mock: State<'_, MockSource>, layer: u8) -> Result<(), Stri
 }
 
 #[tauri::command]
+fn mock_set_modifier(mock: State<'_, MockSource>, bit: u8, active: bool) -> Result<(), String> {
+    mock.set_modifier(bit, active)
+}
+
+#[tauri::command]
+fn mock_set_demo_status(mock: State<'_, MockSource>, enabled: bool) -> Result<(), String> {
+    mock.set_demo_status(enabled);
+    Ok(())
+}
+
+#[tauri::command]
 fn mock_inject_gap(mock: State<'_, MockSource>) -> Result<(), String> {
     mock.inject_gap();
+    Ok(())
+}
+
+#[tauri::command]
+fn mock_inject_firmware_drop(mock: State<'_, MockSource>) -> Result<(), String> {
+    mock.inject_firmware_drop();
     Ok(())
 }
 
@@ -217,7 +234,10 @@ pub fn run() {
             mock_burst,
             mock_hold_layer,
             mock_release_layer,
+            mock_set_modifier,
+            mock_set_demo_status,
             mock_inject_gap,
+            mock_inject_firmware_drop,
             mock_disconnect,
             mock_reconnect
         ])

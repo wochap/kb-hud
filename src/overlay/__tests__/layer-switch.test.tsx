@@ -16,10 +16,15 @@ const keymap = parseKeymapSvg(
 function state(activeLayers: number, pressed: number[] = []): TelemetryState {
   return {
     connection: "connected",
+    snapshot: false,
     pressed,
     activeLayers,
+    changedFields: 0,
+    validFields: 0,
+    modifiers: 0,
     sequence: 1,
     timestampMs: 0,
+    firmwareDrops: 0,
     gaps: 0,
   };
 }

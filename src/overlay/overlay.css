@@ -54,6 +54,25 @@
   font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace;
 }
 
+.modifier-resolved .keycap {
+  stroke: rgba(255, 191, 105, 0.95);
+  stroke-width: 2;
+}
+
+.modifier-resolved .keycap-highlight {
+  fill: rgba(255, 166, 77, 0.78);
+  stroke: rgba(255, 220, 160, 0.95);
+}
+
+.modifier-resolved .keycap-tap {
+  fill: rgba(230, 220, 205, 0.58);
+}
+
+.modifier-resolved .keycap-hold {
+  fill: rgba(255, 235, 195, 1);
+  font-weight: 700;
+}
+
 .overlay-hud {
   position: absolute;
   top: 2px;
@@ -61,15 +80,33 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   font-family: monospace;
   font-size: 12px;
 }
 
-.layer-badge {
+.layer-badge,
+.telemetry-status,
+.modifier-badge,
+.indicator-badge {
   color: rgba(235, 240, 250, 0.9);
   background: rgba(17, 19, 27, 0.68);
   border-radius: 8px;
   padding: 2px 8px;
+}
+
+.modifier-badge {
+  color: rgba(255, 235, 195, 1);
+  border: 1px solid rgba(255, 191, 105, 0.72);
+}
+
+.indicator-badge {
+  color: rgba(180, 235, 255, 1);
+}
+
+.split-disconnected {
+  color: rgba(255, 160, 150, 0.95);
 }
 
 .gaps {

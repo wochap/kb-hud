@@ -166,9 +166,7 @@ async fn connection_cycle(hub: &SharedHub, device_mac: &str) -> Outcome {
     }
     let Some(service) = telemetry_service else {
         let _ = device.disconnect().await;
-        return Outcome::Fatal(
-            "unsupported device: telemetry service not found".to_string(),
-        );
+        return Outcome::Fatal("unsupported device: telemetry service not found".to_string());
     };
 
     let characteristics = match service.characteristics().await {
@@ -196,6 +194,19 @@ async fn connection_cycle(hub: &SharedHub, device_mac: &str) -> Outcome {
         Ok(value) => value,
         Err(e) => return Outcome::Ended(Some(format!("initial read failed: {e}"))),
     };
+    let initial_frame = match protocol::decode(&snapshot) {
+        Ok(frame) if frame.snapshot => frame,
+        Ok(_) => {
+            let _ = device.disconnect().await;
+            return Outcome::Fatal(
+                "incompatible telemetry: initial read is not a v2 snapshot".to_string(),
+            );
+        }
+        Err(e) => {
+            let _ = device.disconnect().await;
+            return Outcome::Fatal(format!("incompatible telemetry: {e}"));
+        }
+    };
 
     let mut notify = match characteristic.notify().await {
         Ok(stream) => Box::pin(stream),
@@ -205,8 +216,7 @@ async fn connection_cycle(hub: &SharedHub, device_mac: &str) -> Outcome {
     {
         let mut hub = hub.lock().unwrap();
         hub.reset_sequence_tracking();
-        feed(&mut hub, &snapshot);
-        hub.publish_connection(ConnectionStatus::Connected, None);
+        hub.publish_frame(&initial_frame);
     }
 
     let mut events = match device.events().await {
@@ -239,7 +249,7 @@ async fn connection_cycle(hub: &SharedHub, device_mac: &str) -> Outcome {
 /// Feeds one raw record through validation + decode + publication.
 fn feed(hub: &mut crate::telemetry::hub::TelemetryHub, bytes: &[u8]) {
     match protocol::decode(bytes) {
-        Ok(record) => hub.publish_record(&record),
+        Ok(frame) => hub.publish_frame(&frame),
         Err(e) => hub.publish_connection(ConnectionStatus::Connected, Some(e.to_string())),
     }
 }
@@ -275,17 +285,17 @@ pub async fn list_paired_devices() -> Result<Vec<PairedDevice>, String> {
 /// Resolves the profile device selection to a concrete adapter + address.
 /// Returns an Outcome so fatal auto-detect errors stop the retry loop.
 async fn resolve_device(device_mac: &str) -> Result<(Adapter, Address), Outcome> {
-    let session = Session::new().await.map_err(|e| {
-        Outcome::Ended(Some(format!("no system Bluetooth bus: {e}")))
-    })?;
-    let adapter = session.default_adapter().await.map_err(|e| {
-        Outcome::Ended(Some(format!("no default Bluetooth adapter: {e}")))
-    })?;
+    let session = Session::new()
+        .await
+        .map_err(|e| Outcome::Ended(Some(format!("no system Bluetooth bus: {e}"))))?;
+    let adapter = session
+        .default_adapter()
+        .await
+        .map_err(|e| Outcome::Ended(Some(format!("no default Bluetooth adapter: {e}"))))?;
 
     if device_mac != AUTO_DEVICE {
-        let address = Address::from_str(device_mac).map_err(|_| {
-            Outcome::Fatal(format!("invalid Bluetooth MAC address: {device_mac}"))
-        })?;
+        let address = Address::from_str(device_mac)
+            .map_err(|_| Outcome::Fatal(format!("invalid Bluetooth MAC address: {device_mac}")))?;
         return Ok((adapter, address));
     }
 
