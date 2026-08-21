@@ -3,23 +3,17 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?rev=0ad6f47ea4fe188f4bc8f0380f93ae8523337c6c"; # nixos-26.05 (10 jul 2026)
-    bun2nix = {
-      url = "github:nix-community/bun2nix/2.0.8";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
   outputs =
     {
       self,
       nixpkgs,
-      bun2nix,
     }:
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs {
         inherit system;
-        overlays = [ bun2nix.overlays.default ];
       };
       lib = nixpkgs.lib;
       version = (lib.importTOML ./src-tauri/Cargo.toml).package.version;
@@ -34,27 +28,18 @@
         buildAndTestSubdir = "src-tauri";
         cargoLock.lockFile = ./src-tauri/Cargo.lock;
 
-        bunDeps = pkgs.bun2nix.fetchBunDeps {
-          bunNix = ./bun.nix;
+        npmDeps = pkgs.fetchNpmDeps {
+          src = self;
+          fetcherVersion = 2;
+          hash = "sha256-OJKf6XIOA3XsbY094DNLdT53ap0MXg67WFiOvdD8EAE=";
         };
+        NIX_NPM_FETCHER_VERSION = "2";
 
-        # Only use the bun2nix hook for dependency setup (node_modules);
-        # the build/check/install phases belong to cargo's hooks.
-        dontUseBunBuild = true;
-        dontUseBunCheck = true;
-        dontUseBunInstall = true;
         doCheck = false;
 
-        # Bun's isolated linker can hang indefinitely while reconstructing the
-        # offline node_modules tree. This is a single-package application, so
-        # the simpler hoisted layout is sufficient and substantially faster.
-        bunInstallFlags = [
-          "--linker=hoisted"
-          "--ignore-scripts"
-        ];
-
         nativeBuildInputs = [
-          pkgs.bun2nix.hook
+          pkgs.nodejs
+          pkgs.npmHooks.npmConfigHook
           pkgs.pkg-config
           pkgs.wrapGAppsHook3
         ];
@@ -67,12 +52,10 @@
           libayatana-appindicator
         ];
 
-        # Frontend build (tauri.conf.json beforeBuildCommand); the bun2nix hook
-        # has already populated node_modules from bunDeps at this point. The
-        # dist/ must exist before cargo builds: tauri embeds the frontend
+        # The dist/ must exist before cargo builds: Tauri embeds the frontend
         # assets at compile time.
         preBuild = ''
-          bun run build
+          npm run build
         '';
 
         # libappindicator-sys dlopens the tray library at runtime;
@@ -102,7 +85,7 @@
           clippy
           rustc
           rustfmt
-          bun
+          nodejs
           pkg-config
           webkitgtk_4_1
           gtk3

@@ -162,20 +162,20 @@ reconnects using automatic discovery.
 
 ## Build and development
 
-Nix with flakes is required. The development shell provides Bun, Rust, and the
+Nix with flakes is required. The development shell provides Node.js, Rust, and the
 Tauri Linux dependencies.
 
 ```sh
 nix develop
-bun install
-bun run tauri dev
+npm ci
+npm run tauri dev
 ```
 
 Run the checks with:
 
 ```sh
-bun run test
-bun run build
+npm test
+npm run build
 cargo fmt --check --manifest-path src-tauri/Cargo.toml
 cargo test --manifest-path src-tauri/Cargo.toml
 ```
@@ -186,21 +186,22 @@ mock telemetry panel for frontend work in that environment.
 
 ## Packaging
 
-The Nix flake builds the frontend with
-[`bun2nix`](https://github.com/nix-community/bun2nix) and the Tauri backend with
-`buildRustPackage`:
+The Nix flake builds the frontend from npm's offline dependency cache and the
+Tauri backend with `buildRustPackage`:
 
 ```sh
 nix build        # result/bin/kb-hud
 nix run
 ```
 
-Frontend dependencies are pinned in `bun.nix`. After changing `package.json`,
-update the lockfile and generated Nix dependency set:
+Frontend dependencies are pinned in `package-lock.json`. After changing
+`package.json`, update the lockfile, temporarily set the `npmDeps` hash in
+`flake.nix` to `lib.fakeHash`, and copy the hash reported by `nix build` back
+into the flake:
 
 ```sh
-bun install
-bunx bun2nix -o bun.nix
+npm install
+nix build
 ```
 
 ## Hyprland
