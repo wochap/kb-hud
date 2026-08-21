@@ -43,6 +43,15 @@
         dontUseBunBuild = true;
         dontUseBunCheck = true;
         dontUseBunInstall = true;
+        doCheck = false;
+
+        # Bun's isolated linker can hang indefinitely while reconstructing the
+        # offline node_modules tree. This is a single-package application, so
+        # the simpler hoisted layout is sufficient and substantially faster.
+        bunInstallFlags = [
+          "--linker=hoisted"
+          "--ignore-scripts"
+        ];
 
         nativeBuildInputs = [
           pkgs.bun2nix.hook
