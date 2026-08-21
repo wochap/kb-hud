@@ -1,6 +1,6 @@
 # kb-hud
 
-https://github.com/user-attachments/assets/43f146ce-df2c-4957-9b89-e7132d8b0868
+https://github.com/user-attachments/assets/f57b19d5-e154-478d-a078-154bb65b3430
 
 kb-hud is a transparent desktop overlay for compatible ZMK keyboards. It
 renders the keyboard from a keymap-drawer SVG and updates it in real time from
