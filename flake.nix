@@ -27,6 +27,7 @@
         cargoRoot = "src-tauri";
         buildAndTestSubdir = "src-tauri";
         cargoLock.lockFile = ./src-tauri/Cargo.lock;
+        buildFeatures = [ "custom-protocol" ];
 
         npmDeps = pkgs.fetchNpmDeps {
           src = self;
